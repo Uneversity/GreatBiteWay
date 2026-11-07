@@ -6,6 +6,16 @@ before the demo and move this into the database (see db/schema.sql).
 
 TRAITS = ["creative", "technical", "hands_on", "people", "analytical", "protective"]
 
+# Plain-language meaning of each trait, used in Gemini prompts and embedding text.
+TRAIT_DESCRIPTIONS = {
+    "creative": "imaginative, enjoys designing and making things look or feel good",
+    "technical": "curious about how machines, software and systems work",
+    "hands_on": "likes physical, practical work with tools, materials or food",
+    "people": "energized by working with, helping or leading other people",
+    "analytical": "enjoys math, logic, puzzles and careful problem solving",
+    "protective": "motivated by keeping people, systems and data safe",
+}
+
 # Each field has a trait profile (0..1). The quiz scores the student against these.
 FIELDS: dict[str, dict] = {
     "architecture": {

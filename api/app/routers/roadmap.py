@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import require_user
 from app.data import MAJORS, fallback_roadmap
-from app.schemas import Roadmap
-from app.services import db, gemini, swarms
+from app.schemas import ExplainRequest, Roadmap, RoadmapExplanation
+from app.services import db, explain, swarms
 
 router = APIRouter(tags=["roadmap"])
 
@@ -24,12 +24,19 @@ async def get_roadmap(slug: str) -> Roadmap:
     else:
         roadmap = Roadmap(**fallback_roadmap(slug, major["name"], major["mdc_program"]))
 
-    explanation = await gemini.explain_roadmap(
-        roadmap.career, "\n".join(f"- {s.title}: {s.detail}" for s in roadmap.steps)
-    )
-    if explanation:
-        roadmap.summary = explanation
+    if explanation := await explain.explain_roadmap(roadmap):
+        roadmap.summary = explanation.summary
+        roadmap.explanation = explanation
     return roadmap
+
+
+@router.post("/roadmap/explain", response_model=RoadmapExplanation)
+async def explain_roadmap(body: ExplainRequest) -> RoadmapExplanation:
+    """Plain-English explanation of any roadmap, personalized when quiz answers are included."""
+    result = await explain.explain_roadmap(body.roadmap, body.answers)
+    if not result:
+        raise HTTPException(503, "Gemini unavailable (is GEMINI_API_KEY set?)")
+    return result
 
 
 @router.get("/me/roadmaps")
