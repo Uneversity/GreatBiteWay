@@ -16,6 +16,7 @@ export type QuizStep = {
   done: boolean;
   next_question: Question | null;
   top_matches: FieldMatch[];
+  in_range: FieldMatch[];
 };
 
 export type Major = {
@@ -52,6 +53,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  quizQuestions: () => request<Question[]>("/quiz/questions"),
   quizStep: (answers: Answer[]) =>
     request<QuizStep>("/quiz/step", { method: "POST", body: JSON.stringify({ answers }) }),
   majors: () => request<Major[]>("/majors"),

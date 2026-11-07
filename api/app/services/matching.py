@@ -63,9 +63,25 @@ def quiz_step(answers: list[Answer]) -> QuizStep:
             options=[Option(label=o["label"], value=i) for i, o in enumerate(q["options"])],
         )
 
+    def match(s: str, p: float) -> FieldMatch:
+        return FieldMatch(slug=s, name=FIELDS[s]["name"], score=round(p, 3))
+
+    # "Still in range": a rank-based funnel. Each answer retires the weakest field,
+    # so the chips narrow predictably (5 → 4 → 3 → 2 → 1) while the scores stay honest.
+    keep = max(1, len(FIELDS) - len(answers))
+    in_range = [match(s, p) for s, p in ranked[:keep]]
+
     return QuizStep(
         depth=round(depth, 3),
         done=done,
         next_question=next_q,
-        top_matches=[FieldMatch(slug=s, name=FIELDS[s]["name"], score=round(p, 3)) for s, p in ranked[:3]],
+        top_matches=[match(s, p) for s, p in ranked[:3]],
+        in_range=in_range,
     )
+
+
+def all_questions() -> list[Question]:
+    return [
+        Question(id=q["id"], text=q["text"], options=[Option(label=o["label"], value=i) for i, o in enumerate(q["options"])])
+        for q in QUESTIONS
+    ]

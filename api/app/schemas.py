@@ -34,6 +34,7 @@ class QuizStep(BaseModel):
     done: bool
     next_question: Question | None
     top_matches: list[FieldMatch]
+    in_range: list[FieldMatch]  # fields still plausible given the answers so far
 
 
 class Major(BaseModel):
