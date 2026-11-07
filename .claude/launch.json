@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "D:/VSC/MDC/api/.venv/Scripts/fastapi.exe",
+      "runtimeArgs": ["dev", "app/main.py", "--port", "8000"],
+      "cwd": "D:/VSC/MDC/api",
+      "port": 8000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "D:/VSC/MDC/web",
+      "port": 3000
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Python
+api/.venv/
+__pycache__/
+*.pyc
+
+# Secrets (examples are committed)
+.env
+.env.local
+!.env.example

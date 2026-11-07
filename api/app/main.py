@@ -1,0 +1,44 @@
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.routers import majors, quiz, roadmap
+from app.services import db
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    await db.connect()
+    yield
+    await db.disconnect()
+
+
+app = FastAPI(title="Shark Pathways API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in get_settings().cors_origins.split(",")],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(quiz.router)
+app.include_router(majors.router)
+app.include_router(roadmap.router)
+
+
+@app.get("/health")
+async def health() -> dict:
+    s = get_settings()
+    return {
+        "ok": True,
+        "integrations": {
+            "tiger_postgres": db.pool is not None,
+            "gemini": bool(s.gemini_api_key),
+            "swarms": bool(s.swarms_api_key),
+            "auth0": bool(s.auth0_domain),
+        },
+    }
