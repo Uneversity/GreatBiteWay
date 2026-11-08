@@ -6,6 +6,7 @@ import NeonGlow from "@/components/neonblade-ui/neon-glow";
 import type { Roadmap, RoadmapStep } from "@/lib/api";
 import { MAX_METERS, checkpointMeters, clamp, colorAt, rgb, zoneAt } from "@/lib/depth";
 import { layerSteps } from "@/lib/roadmapLayout";
+import { StepPanel } from "./StepPanel";
 
 /**
  * A roadmap drawn as a dive. The page is one long water column: the hero floats
@@ -53,6 +54,11 @@ export function RoadmapDescent({ roadmap, eyebrow, meta, actions }: Props) {
     () => new Map((roadmap.explanation?.step_notes ?? []).map((n) => [n.id, n.note])),
     [roadmap.explanation],
   );
+  // Clicking a card opens the side panel with Gemini's closer look at that step.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openStep = roadmap.steps.find((s) => s.id === openId) ?? null;
+  const closePanel = useCallback(() => setOpenId(null), []);
+
   // Connectors are drawn in an SVG over the water column from the cards' measured boxes.
   const column = useRef<HTMLDivElement>(null);
   const cards = useRef(new Map<string, HTMLElement>());
@@ -199,7 +205,14 @@ export function RoadmapDescent({ roadmap, eyebrow, meta, actions }: Props) {
                   style={{ "--cols": cols } as React.CSSProperties}
                 >
                   {layer.map((s) => (
-                    <StepCard key={s.id} ref={register(s.id)} step={s} note={notes.get(s.id)} />
+                    <StepCard
+                      key={s.id}
+                      ref={register(s.id)}
+                      step={s}
+                      note={notes.get(s.id)}
+                      active={openId === s.id}
+                      onOpen={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
+                    />
                   ))}
                 </div>
               </div>
@@ -248,6 +261,8 @@ export function RoadmapDescent({ roadmap, eyebrow, meta, actions }: Props) {
           </div>
         </div>
       </section>
+
+      <StepPanel roadmap={roadmap} step={openStep} stage={openStep ? STAGE[openStep.stage] : null} onClose={closePanel} />
     </div>
   );
 }
@@ -278,16 +293,39 @@ function DepthMark({ meters }: { meters: number }) {
   );
 }
 
-type CardProps = { step: RoadmapStep; note?: string; ref: (el: HTMLElement | null) => void };
+type CardProps = {
+  step: RoadmapStep;
+  note?: string;
+  active: boolean;
+  onOpen: () => void;
+  ref: (el: HTMLElement | null) => void;
+};
 
-function StepCard({ step, note, ref }: CardProps) {
+function StepCard({ step, note, active, onOpen, ref }: CardProps) {
   const { label, color } = STAGE[step.stage];
   const courses = step.courses ?? [];
   return (
     <article
       ref={ref}
-      className="relative flex flex-col border border-white/10 px-6 py-5"
-      style={{ background: DECK, boxShadow: `inset 3px 0 0 ${color}` }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={active}
+      aria-label={`${step.title}: tell me more`}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a")) return; // the Source link keeps working
+        onOpen();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`group relative flex cursor-pointer flex-col border px-6 py-5 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${active ? "border-white/45" : "border-white/10"}`}
+      style={{
+        background: DECK,
+        boxShadow: active ? `inset 3px 0 0 ${color}, 0 0 0 1px ${color}55, 0 0 28px ${color}33` : `inset 3px 0 0 ${color}`,
+      }}
     >
       <div className="flex items-baseline justify-between gap-4 font-mono text-[10px] tracking-[0.18em] uppercase">
         <span style={{ color }}>{label}</span>
@@ -305,16 +343,18 @@ function StepCard({ step, note, ref }: CardProps) {
           ))}
         </ul>
       )}
-      {step.source_url && (
-        <a
-          href={step.source_url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 self-start font-mono text-[10px] tracking-[0.16em] text-white/40 uppercase transition hover:text-white"
-        >
-          Source ↗
-        </a>
-      )}
+      <div className="mt-4 flex items-center justify-between gap-4 font-mono text-[10px] tracking-[0.16em] uppercase">
+        {step.source_url ? (
+          <a href={step.source_url} target="_blank" rel="noreferrer" className="text-white/40 transition hover:text-white">
+            Source ↗
+          </a>
+        ) : (
+          <span />
+        )}
+        <span className={`transition-colors ${active ? "" : "text-white/45 group-hover:text-white"}`} style={active ? { color } : undefined}>
+          {active ? "Reading ›" : "Tell me more ›"}
+        </span>
+      </div>
     </article>
   );
 }

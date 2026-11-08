@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import embeddings, explain, gemini
+from app.services import elaborate, embeddings, explain, gemini
 
 
 @pytest.fixture
@@ -22,6 +22,7 @@ def client():
 def reset_caches():
     embeddings._field_vectors = None
     explain._cache.clear()
+    elaborate._cache.clear()
 
 
 @pytest.fixture
@@ -177,6 +178,47 @@ def test_explain_endpoint_filters_and_orders_notes(client, monkeypatch):
     assert [n["id"] for n in r["step_notes"]] == ["s1", "s3"]
     assert r["first_move"] and r["generated_by"].startswith("Gemini")
     assert "Keeping people and their data safe" in fake_generate.last_prompt
+
+
+# --- step elaboration ----------------------------------------------------------
+
+ELABORATION = {
+    "headline": "  Your first two years at MDC  ",
+    "overview": "This is where you take your core classes.",
+    "specs": [{"label": "Where", "value": "MDC campus or online"}, {"label": " ", "value": "dropped"}],
+    "what_to_expect": ["Classes", " ", "Labs", "a", "b", "c", "d"],
+    "how_to_prepare": ["Meet your advisor"],
+    "questions_to_ask": ["Which classes transfer?"],
+    "leads_to": "It sets you up to transfer.",
+}
+
+
+def test_elaborate_step_uses_neighbours_and_cleans_output(client, no_gemini, monkeypatch):
+    roadmap = client.get("/roadmap/cybersecurity").json()
+    monkeypatch.setattr(gemini, "generate_json", fake_generate(ELABORATION))
+    step = next(s for s in roadmap["steps"] if s["depends_on"])
+    before = next(s for s in roadmap["steps"] if s["id"] == step["depends_on"][0])
+
+    r = client.post("/roadmap/elaborate", json={"roadmap": roadmap, "step_id": step["id"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["step_id"] == step["id"] and body["headline"] == "Your first two years at MDC"
+    assert [f["label"] for f in body["specs"]] == ["Where"]
+    assert body["what_to_expect"] == ["Classes", "Labs", "a", "b", "c"]  # blanks dropped, capped at 5
+    assert body["generated_by"] == "Gemini"
+    assert step["title"] in fake_generate.last_prompt and before["title"] in fake_generate.last_prompt
+
+
+def test_elaborate_unknown_step_is_404(client, no_gemini, monkeypatch):
+    roadmap = client.get("/roadmap/cybersecurity").json()
+    monkeypatch.setattr(gemini, "generate_json", fake_generate(ELABORATION))
+    assert client.post("/roadmap/elaborate", json={"roadmap": roadmap, "step_id": "nope"}).status_code == 404
+
+
+def test_elaborate_without_key_is_503(client, no_gemini):
+    roadmap = client.get("/roadmap/architecture").json()
+    sid = roadmap["steps"][0]["id"]
+    assert client.post("/roadmap/elaborate", json={"roadmap": roadmap, "step_id": sid}).status_code == 503
 
 
 def test_roadmap_without_key_keeps_fallback_summary(client, no_gemini):

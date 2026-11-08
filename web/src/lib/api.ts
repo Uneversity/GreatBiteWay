@@ -62,6 +62,18 @@ export type Roadmap = {
   explanation?: RoadmapExplanation | null;
 };
 
+export type StepElaboration = {
+  step_id: string;
+  headline: string;
+  overview: string;
+  specs: { label: string; value: string }[];
+  what_to_expect: string[];
+  how_to_prepare: string[];
+  questions_to_ask: string[];
+  leads_to: string;
+  generated_by: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -135,4 +147,11 @@ export const api = {
     request<QuizStep>("/quiz/step", { method: "POST", body: JSON.stringify({ answers }) }),
   majors: () => request<Major[]>("/majors"),
   roadmap: (slug: string) => request<Roadmap>(`/roadmap/${slug}`),
+  /** Gemini's closer look at one step. Throws on 503 (no Gemini key) or 404 (step not in roadmap). */
+  elaborate: (roadmap: Roadmap, stepId: string, signal?: AbortSignal) =>
+    request<StepElaboration>("/roadmap/elaborate", {
+      method: "POST",
+      body: JSON.stringify({ roadmap, step_id: stepId }),
+      signal,
+    }),
 };

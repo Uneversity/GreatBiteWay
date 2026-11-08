@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
 from app.data import MAJORS, fallback_roadmap
-from app.schemas import ExplainRequest, Roadmap, RoadmapExplanation
-from app.services import explain, pathways, swarms
+from app.schemas import ElaborateRequest, ExplainRequest, Roadmap, RoadmapExplanation, StepElaboration
+from app.services import elaborate, explain, pathways, swarms
 
 router = APIRouter(tags=["roadmap"])
 
@@ -42,6 +42,17 @@ async def get_roadmap(slug: str) -> Roadmap:
 async def explain_roadmap(body: ExplainRequest) -> RoadmapExplanation:
     """Plain-English explanation of any roadmap, personalized when quiz answers are included."""
     result = await explain.explain_roadmap(body.roadmap, body.answers)
+    if not result:
+        raise HTTPException(503, "Gemini unavailable (is GEMINI_API_KEY set?)")
+    return result
+
+
+@router.post("/roadmap/elaborate", response_model=StepElaboration)
+async def elaborate_step(body: ElaborateRequest) -> StepElaboration:
+    """A closer look at one step: what it is, quick facts, what to expect, how to prepare."""
+    if body.step_id not in {s.id for s in body.roadmap.steps}:
+        raise HTTPException(404, "That step isn't in this roadmap")
+    result = await elaborate.elaborate_step(body.roadmap, body.step_id)
     if not result:
         raise HTTPException(503, "Gemini unavailable (is GEMINI_API_KEY set?)")
     return result

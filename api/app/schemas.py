@@ -160,3 +160,26 @@ class Me(BaseModel):
 class ExplainRequest(BaseModel):
     roadmap: Roadmap
     answers: list[Answer] = []  # optional: lets Gemini tie the pathway to the student's interests
+
+
+class ElaborateRequest(BaseModel):
+    roadmap: Roadmap
+    step_id: str
+
+
+class StepFact(BaseModel):
+    label: str  # e.g. "Format", "Who it's for"
+    value: str
+
+
+class StepElaboration(BaseModel):
+    """A deeper look at one roadmap step, shown in the side panel when a student clicks it."""
+    step_id: str
+    headline: str
+    overview: str
+    specs: list[StepFact]  # quick facts: format, length, cost notes, where it happens
+    what_to_expect: list[str]
+    how_to_prepare: list[str]
+    questions_to_ask: list[str]  # for an MDC advisor
+    leads_to: str  # how this step sets up the next one
+    generated_by: str
