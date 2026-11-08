@@ -75,7 +75,7 @@ export function Checkpoint({ index, total, question, meters, selected, inRange, 
               type="button"
               onClick={onContinue}
               disabled={!ready}
-              className="group py-1 text-[13px] font-semibold transition-colors duration-300 disabled:cursor-not-allowed disabled:text-white/30"
+              className="group py-2 text-[15px] font-semibold transition-colors duration-300 disabled:cursor-not-allowed disabled:text-white/30"
               style={{ color: ready ? accent : undefined }}
             >
               {isLast ? "Reach the floor" : "Descend"}{" "}
