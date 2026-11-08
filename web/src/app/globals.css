@@ -49,7 +49,22 @@ h1, h2, h3:not(.font-mono), .font-display {
   transform-style: preserve-3d;
 }
 
+/* Major illustrations trace themselves in when their card opens (every shape has pathLength=1). */
+.glyph-draw > * {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0s;
+}
+[data-open] .glyph-draw > * {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.12s;
+}
+[data-open] .glyph-draw > *:nth-child(2) { transition-delay: 0.22s; }
+[data-open] .glyph-draw > *:nth-child(3) { transition-delay: 0.32s; }
+[data-open] .glyph-draw > *:nth-child(n + 4) { transition-delay: 0.42s; }
+
 @media (prefers-reduced-motion: reduce) {
   .waterline, .edge-flow { animation: none; }
   .mdc-spin { animation: mdc-pulse 1.6s ease-in-out infinite; }
+  .glyph-draw > *, [data-open] .glyph-draw > * { stroke-dashoffset: 0; transition: none; }
 }

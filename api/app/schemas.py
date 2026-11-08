@@ -63,6 +63,24 @@ class SemanticMatch(BaseModel):
     profile_text: str  # the text that was embedded, for transparency/debugging
 
 
+class CareerHighlight(BaseModel):
+    title: str
+    median_pay: int  # US dollars a year
+    pay_year: int
+    outlook: str  # e.g. "6% (Faster than average)"
+    outlook_period: str
+    source_url: str
+
+
+class StudyHighlight(BaseModel):
+    path: str  # e.g. "A.S. then B.S."
+    credits: int
+    years: int  # typical full-time
+    est_cost: int  # in-state tuition + fees, US dollars, before aid
+    source_url: str  # the program page the credits come from
+    cost_source_url: str  # MDC's tuition page
+
+
 class Major(BaseModel):
     slug: str
     name: str
@@ -70,6 +88,8 @@ class Major(BaseModel):
     mdc_program: str
     summary: str
     mdc_url: str | None = None
+    career: CareerHighlight | None = None
+    study: StudyHighlight | None = None
 
 
 class CourseRef(BaseModel):

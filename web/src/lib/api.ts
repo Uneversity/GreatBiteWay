@@ -19,12 +19,33 @@ export type QuizStep = {
   in_range: FieldMatch[];
 };
 
+export type CareerHighlight = {
+  title: string;
+  median_pay: number;
+  pay_year: number;
+  outlook: string; // e.g. "6% (Faster than average)"
+  outlook_period: string;
+  source_url: string;
+};
+
+export type StudyHighlight = {
+  path: string; // e.g. "A.S. then B.S."
+  credits: number;
+  years: number;
+  est_cost: number; // in-state tuition + fees before aid
+  source_url: string;
+  cost_source_url: string;
+};
+
 export type Major = {
   slug: string;
   name: string;
   field: string;
   mdc_program: string;
   summary: string;
+  mdc_url?: string | null;
+  career?: CareerHighlight | null;
+  study?: StudyHighlight | null;
 };
 
 export type CourseRef = {
