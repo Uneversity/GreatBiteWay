@@ -18,3 +18,23 @@ h1, h2, h3, .font-display {
   font-variation-settings: "SOFT" 30;
   letter-spacing: -0.015em;
 }
+
+/* Roadmap descent: the only motion is a slow waterline drift and a crawl along the connectors. */
+@keyframes waterline-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.waterline {
+  animation: waterline-drift 22s linear infinite;
+  will-change: transform;
+}
+@keyframes edge-flow {
+  to { stroke-dashoffset: -24; }
+}
+.edge-flow {
+  stroke-dasharray: 6 6;
+  animation: edge-flow 3s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .waterline, .edge-flow { animation: none; }
+}
