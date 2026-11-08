@@ -43,7 +43,6 @@ async def health() -> dict:
             "tiger_postgres": db.pool is not None,
             "catalog_source": catalog.source,
             "gemini": bool(s.gemini_api_key),
-            "swarms": bool(s.swarms_api_key),
             "auth0": bool(s.auth0_domain and s.auth0_audience),
         },
     }

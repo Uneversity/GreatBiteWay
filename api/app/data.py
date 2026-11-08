@@ -205,12 +205,12 @@ QUESTIONS = [
 ]
 
 
-# Static fallback roadmap used when Swarms/Gemini keys aren't configured.
+# Static fallback roadmap used when the database has no pathway for a major.
 def fallback_roadmap(slug: str, career: str, mdc_program: str) -> dict:
     return {
         "career": career,
         "summary": f"A sample pathway to {career}, starting at Miami Dade College. (Static fallback data.)",
-        "generated_by": "fallback (no SWARMS_API_KEY)",
+        "generated_by": "fallback (static sample data)",
         "steps": [
             {"id": "s1", "stage": "mdc", "title": "Enroll at MDC", "detail": mdc_program, "duration": "Semester 1", "depends_on": []},
             {"id": "s2", "stage": "mdc", "title": "Core + gateway courses", "detail": "Gen-ed and intro major courses", "duration": "Semesters 1-2", "depends_on": ["s1"]},

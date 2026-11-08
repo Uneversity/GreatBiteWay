@@ -14,9 +14,6 @@ class Settings(BaseSettings):
     gemini_fallback_model: str = "gemini-3.5-flash-lite"  # used when the main model is overloaded
     gemini_embed_model: str = "gemini-embedding-001"
 
-    swarms_api_key: str = ""
-    swarms_model: str = "gpt-4o-mini"
-
     auth0_domain: str = ""
     auth0_audience: str = ""
 

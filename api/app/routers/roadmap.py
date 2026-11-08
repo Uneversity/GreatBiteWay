@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.data import MAJORS, fallback_roadmap
 from app.schemas import ElaborateRequest, ExplainRequest, Roadmap, RoadmapExplanation, StepElaboration
-from app.services import elaborate, explain, pathways, swarms
+from app.services import elaborate, explain, pathways
 
 router = APIRouter(tags=["roadmap"])
 
@@ -14,15 +14,10 @@ async def roadmap_for(slug: str) -> Roadmap | None:
         return None
 
     # 1. Grounded tree from Tiger Cloud rows (MDC course guides + BLS), when seeded.
-    # 2. Otherwise the Swarms agents, then 3. the static placeholder.
+    # 2. Otherwise the static placeholder.
     roadmap = await pathways.build_roadmap(slug)
     if not roadmap:
-        result = await swarms.generate_roadmap(major["name"], [major])
-        if result:
-            roadmap = Roadmap(career=major["name"], summary=result["summary"], steps=result["steps"],
-                              generated_by=f"Swarms (cost: {result.get('cost')})")
-        else:
-            roadmap = Roadmap(**fallback_roadmap(slug, major["name"], major["mdc_program"]))
+        roadmap = Roadmap(**fallback_roadmap(slug, major["name"], major["mdc_program"]))
 
     if explanation := await explain.explain_roadmap(roadmap):
         roadmap.summary = explanation.summary
