@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -123,6 +124,37 @@ class Roadmap(BaseModel):
     steps: list[RoadmapStep]
     generated_by: str
     explanation: RoadmapExplanation | None = None
+
+
+class SaveRoadmapRequest(BaseModel):
+    major_slug: str
+
+
+class SavedRoadmapSummary(BaseModel):
+    id: int
+    major_slug: str
+    major_name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedRoadmap(SavedRoadmapSummary):
+    roadmap: Roadmap
+
+
+class QuizResult(BaseModel):
+    id: int
+    answers: list[Answer]
+    top_matches: list[FieldMatch]
+    depth: float
+    done: bool
+    created_at: datetime
+
+
+class Me(BaseModel):
+    user_id: str  # Auth0 `sub`
+    saved_roadmaps: int
+    quiz_results: int
 
 
 class ExplainRequest(BaseModel):

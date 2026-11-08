@@ -52,6 +52,57 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type SavedRoadmapSummary = {
+  id: number;
+  major_slug: string;
+  major_name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedRoadmap = SavedRoadmapSummary & { roadmap: Roadmap };
+
+export type QuizResult = {
+  id: number;
+  answers: Answer[];
+  top_matches: FieldMatch[];
+  depth: number;
+  done: boolean;
+  created_at: string;
+};
+
+export type Me = { user_id: string; saved_roadmaps: number; quiz_results: number };
+
+/** Same-origin call to a Next.js route under /api/me, which adds the Auth0 token server-side. */
+async function account<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`/api/me${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  if (!res.ok) throw new AccountError(res.status, await res.text());
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+/** `status` 401 means signed out (send them to /auth/login); 503 means sign-in isn't configured. */
+export class AccountError extends Error {
+  constructor(public status: number, body: string) {
+    super(`${status} ${body}`);
+  }
+}
+
+/** Signed-in features. Call from client components only (they rely on the session cookie). */
+export const me = {
+  profile: () => account<Me>(""),
+  roadmaps: () => account<SavedRoadmapSummary[]>("/roadmaps"),
+  roadmap: (id: number) => account<SavedRoadmap>(`/roadmaps/${id}`),
+  saveRoadmap: (majorSlug: string) =>
+    account<SavedRoadmap>("/roadmaps", { method: "POST", body: JSON.stringify({ major_slug: majorSlug }) }),
+  deleteRoadmap: (id: number) => account<void>(`/roadmaps/${id}`, { method: "DELETE" }),
+  quizResults: () => account<QuizResult[]>("/quiz-results"),
+  saveQuizResult: (answers: Answer[]) =>
+    account<QuizResult>("/quiz-results", { method: "POST", body: JSON.stringify({ answers }) }),
+};
+
 export const api = {
   quizQuestions: () => request<Question[]>("/quiz/questions"),
   quizStep: (answers: Answer[]) =>

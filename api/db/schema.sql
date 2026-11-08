@@ -123,6 +123,21 @@ CREATE TABLE IF NOT EXISTS saved_roadmaps (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS saved_roadmaps_user_idx ON saved_roadmaps (user_id);
+ALTER TABLE saved_roadmaps ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+-- One saved copy per student per major; saving again refreshes it.
+CREATE UNIQUE INDEX IF NOT EXISTS saved_roadmaps_user_major_idx ON saved_roadmaps (user_id, major_slug);
+
+-- A logged-in student's dive (finished or paused), re-scored on the server.
+CREATE TABLE IF NOT EXISTS quiz_results (
+    id           bigserial PRIMARY KEY,
+    user_id      text    NOT NULL,     -- Auth0 `sub`
+    answers      jsonb   NOT NULL,
+    top_matches  jsonb   NOT NULL,
+    depth        real    NOT NULL,
+    done         boolean NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS quiz_results_user_idx ON quiz_results (user_id, created_at DESC);
 
 -- ---------------------------------------------------------------- quiz analytics (TimescaleDB)
 

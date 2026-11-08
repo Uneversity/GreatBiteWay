@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import insights, majors, quiz, roadmap
+from app.routers import insights, majors, me, quiz, roadmap
 from app.services import catalog, db, events
 
 
@@ -31,6 +31,7 @@ app.include_router(quiz.router)
 app.include_router(majors.router)
 app.include_router(roadmap.router)
 app.include_router(insights.router)
+app.include_router(me.router)
 
 
 @app.get("/health")
@@ -43,6 +44,6 @@ async def health() -> dict:
             "catalog_source": catalog.source,
             "gemini": bool(s.gemini_api_key),
             "swarms": bool(s.swarms_api_key),
-            "auth0": bool(s.auth0_domain),
+            "auth0": bool(s.auth0_domain and s.auth0_audience),
         },
     }
