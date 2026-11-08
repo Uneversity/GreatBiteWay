@@ -172,7 +172,7 @@ export function DiveExperience() {
       {stage >= 1 && (
         <nav
           aria-label="Dive navigation"
-          className="fixed top-14 left-6 z-40 flex items-center border-x border-b border-white/10 bg-[#040b16] font-mono text-[11px] tracking-[0.16em] text-white/60 uppercase sm:left-12"
+          className="fixed top-14 left-0 z-40 flex items-center border-r border-b border-white/10 bg-[#040b16] font-mono text-[11px] tracking-[0.16em] text-white/60 uppercase"
         >
           <button type="button" disabled={!canAscend} onClick={() => travel(stage - 1)} className="px-3 py-2 transition-colors hover:text-white disabled:text-white/25">
             ↑ ascend
