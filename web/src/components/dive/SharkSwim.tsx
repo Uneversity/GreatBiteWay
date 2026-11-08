@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { motion, useAnimate, useReducedMotion, useTransform, type MotionValue } from "motion/react";
 import { MAX_METERS, clamp, lerp, ramp } from "@/lib/depth";
+import { MDC_MARK_H, MDC_MARK_W, MdcMarkShapes } from "@/components/MdcMark";
 import "./shark.css";
 
 type Props = {
@@ -13,18 +14,26 @@ type Props = {
   surface?: number;
 };
 
-const BASE_W = 380;
+/** The artwork's viewBox: the shark is 0..420 wide and the towed flag trails to -120. */
+const VB_X = -120;
+const VB_W = 540;
+const VB_H = 200;
+const BASE_W = 480;
 /** Width of the depth rail at this viewport width (matches DepthGauge's classes). */
 const railWidth = (vw: number) => (vw >= 1024 ? 150 : vw >= 640 ? 104 : 76);
+
+/** How long one crossing takes, and what share of it is the crossing vs. settling into the idle pose. */
+const SWIM_SECONDS = 6.4;
+const CROSS_SHARE = 0.8;
 
 /**
  * One shark, fixed to the viewport, that swims *between* checkpoints.
  *
  * At the surface it idles as the hero's artwork. Every time the active section
- * changes it dives across the screen: starting small and blurred (far away),
- * swelling as it passes in front of the UI, then shrinking as it sinks past —
- * a cheap but convincing perspective pass. It alternates direction each dive,
- * and swims upward if you scroll back.
+ * changes it crosses the screen on a gentle S-curve at near-constant speed, its
+ * nose following the curve and its tail beating faster, then eases into a
+ * resting spot. It alternates direction each crossing and swims upward if you
+ * go back. A pennant with the MDC mark trails from its tail.
  */
 export function SharkSwim({ section, meters, surface = 0.62 }: Props) {
   const [scope, animate] = useAnimate();
@@ -33,14 +42,14 @@ export function SharkSwim({ section, meters, surface = 0.62 }: Props) {
   const current = useRef<ReturnType<typeof animate> | null>(null);
   const reduced = useReducedMotion();
 
-  // Mascot blue on top, white below; both cool off as the light goes.
+  // Gunmetal back over a dull belly; both sink toward black as the light goes.
   const body = useTransform(meters, (m) => {
     const t = clamp(m / MAX_METERS, 0, 1);
-    return `rgb(${lerp(30, 20, t)}, ${lerp(96, 58, t)}, ${lerp(196, 120, t)})`;
+    return `rgb(${lerp(70, 26, t)}, ${lerp(84, 36, t)}, ${lerp(100, 54, t)})`;
   });
   const belly = useTransform(meters, (m) => {
     const t = clamp(m / MAX_METERS, 0, 1);
-    return `rgb(${lerp(246, 170, t)}, ${lerp(250, 196, t)}, ${lerp(253, 222, t)})`;
+    return `rgb(${lerp(214, 132, t)}, ${lerp(218, 146, t)}, ${lerp(222, 164, t)})`;
   });
   const eyeGlow = useTransform(meters, (m) => ramp(m, 1400, 3000));
 
@@ -50,9 +59,12 @@ export function SharkSwim({ section, meters, surface = 0.62 }: Props) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const idle = idlePose(section, vw, vh, surface);
+    // Keeps the flag's logo readable whichever way the shark faces.
+    const face = (sx: number) => el.style.setProperty("--face", String(sx));
 
     if (prev.current === section) {
       // First paint, or a re-pose after the waterline was measured / window resized.
+      face(idle.scaleX);
       animate(el, { ...idle, opacity: 1 }, { duration: posed.current ? 0.6 : 0, ease: "easeOut" });
       posed.current = true;
       return;
@@ -61,31 +73,42 @@ export function SharkSwim({ section, meters, surface = 0.62 }: Props) {
     const goingDown = section > prev.current;
     prev.current = section;
     current.current?.stop();
+    el.removeAttribute("data-swimming");
 
     if (reduced) {
+      face(idle.scaleX);
       current.current = animate(el, { ...idle, opacity: 1 }, { duration: 0.6, ease: "easeInOut" });
       return;
     }
 
     const fromLeft = section % 2 === 1;
     const sx = fromLeft ? 1 : -1;
-    const xs = fromLeft ? [-BASE_W, vw * 0.22, vw * 0.62, vw + BASE_W * 0.3] : [vw + BASE_W, vw * 0.55, vw * 0.12, -BASE_W * 1.3];
-    const ys = goingDown ? [vh * 0.0, vh * 0.28, vh * 0.58, vh * 1.05] : [vh * 1.05, vh * 0.58, vh * 0.28, -vh * 0.2];
-    const tilt = goingDown ? [8, 22, 26, 32] : [-8, -20, -24, -30];
+    const path = swimPath(fromLeft, goingDown, vw, vh);
+    const n = path.x.length;
+    // Evenly spaced through the crossing, then one long segment easing into the idle pose.
+    const times = [...path.x.map((_, i) => (i / (n - 1)) * CROSS_SHARE), 1];
 
-    current.current = animate(
+    face(sx);
+    el.setAttribute("data-swimming", "");
+    const run = animate(
       el,
       {
-        x: [...xs, idle.x],
-        y: [...ys, idle.y],
-        scale: [0.28, 1.1, 0.85, 0.3, idle.scale],
-        rotate: [...tilt.map((d) => d * sx), idle.rotate],
-        scaleX: [sx, sx, sx, sx, idle.scaleX],
-        opacity: [0, 1, 1, 0, 1],
-        filter: ["blur(4px)", "blur(0px)", "blur(0px)", "blur(3px)", "blur(0px)"],
+        x: [...path.x, idle.x],
+        y: [...path.y, idle.y],
+        rotate: [...path.rotate, idle.rotate],
+        scale: [...path.scale, idle.scale],
+        scaleX: [...path.x.map(() => sx), idle.scaleX],
+        opacity: 1,
+        filter: "blur(0px)",
       },
-      { duration: 3.4, ease: "easeInOut", times: [0, 0.28, 0.52, 0.72, 1] },
+      { duration: SWIM_SECONDS, ease: "linear", times },
     );
+    current.current = run;
+    run.then(() => {
+      if (current.current !== run) return; // a newer swim took over
+      el.removeAttribute("data-swimming");
+      face(idle.scaleX);
+    });
   }, [section, surface, animate, scope, reduced]);
 
   return (
@@ -101,12 +124,50 @@ export function SharkSwim({ section, meters, surface = 0.62 }: Props) {
   );
 }
 
+/**
+ * Waypoints for one crossing: a long diagonal with a gentle S-wobble, sampled
+ * finely enough that linear interpolation between points looks like a curve.
+ * Speed is almost constant (a soft start and finish only), the nose points
+ * along the direction of travel, and the scale swells a little mid-screen for
+ * depth without ever "zooming".
+ */
+function swimPath(fromLeft: boolean, goingDown: boolean, vw: number, vh: number) {
+  const sx = fromLeft ? 1 : -1;
+  const x0 = fromLeft ? -BASE_W : vw + BASE_W * 0.25;
+  const x1 = fromLeft ? vw + BASE_W * 0.25 : -BASE_W;
+  const y0 = goingDown ? -vh * 0.12 : vh * 1.08;
+  const y1 = goingDown ? vh * 1.08 : -vh * 0.12;
+  const wobble = vh * 0.055;
+
+  const N = 16;
+  const pts = Array.from({ length: N + 1 }, (_, i) => {
+    const t = i / N;
+    const s = t * t * (3 - 2 * t); // smoothstep
+    const p = lerp(t, s, 0.3); // 70% constant speed, 30% soft ends
+    return {
+      x: lerp(x0, x1, p),
+      y: lerp(y0, y1, p) + Math.sin(t * Math.PI * 2.4) * wobble,
+      scale: 0.5 + 0.4 * Math.sin(t * Math.PI),
+    };
+  });
+
+  const rotate = pts.map((pt, i) => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(N, i + 1)];
+    // Heading of travel; the sprite is mirrored when swimming left, which flips the sign.
+    const deg = (Math.atan2(b.y - a.y, sx * (b.x - a.x)) * 180) / Math.PI;
+    return clamp(deg * 0.85, -34, 34);
+  });
+
+  return { x: pts.map((p) => p.x), y: pts.map((p) => p.y), scale: pts.map((p) => p.scale), rotate };
+}
+
 function idlePose(section: number, vw: number, vh: number, surface: number) {
   const rail = railWidth(vw);
   if (section === 0) {
     // Hero: cruising just under the waterline on the right, dorsal fin breaking the surface.
-    const scale = vw < 900 ? 0.6 : vw < 1280 ? 0.9 : 1.1;
-    const boxH = BASE_W * (200 / 420); // unscaled SVG height
+    const scale = vw < 900 ? 0.55 : vw < 1280 ? 0.85 : 1.05;
+    const boxH = BASE_W * (VB_H / VB_W); // unscaled SVG height
     const visualTop = surface * vh + vh * 0.035; // fin tip sits at the mean line; it breaks the surface as swells pass
     return {
       x: vw - BASE_W * (0.5 + scale * 0.5) - 24,
@@ -141,78 +202,116 @@ function idlePose(section: number, vw: number, vh: number, surface: number) {
 }
 
 /**
- * Side-profile shark in the MDC mascot's colours: royal blue over a white belly,
- * tall swept dorsal, crescent tail, and the trademark toothy grin. Tail and
- * pectoral fin are separate groups so CSS can sway them. Faces right by default.
+ * Side-profile shark drawn to look dangerous: gunmetal back over a dull belly,
+ * long pointed snout, heavy brow over a small black eye, jaw hanging open on
+ * two rows of teeth, a notched dorsal fin and old scars along the flank. A
+ * pennant with the MDC mark is towed from the tail. Tail, pectoral fin and
+ * flag are separate groups so CSS can move them. Faces right.
  */
 function SharkSvg() {
+  // Mark on the pennant: scaled to sit inside the swallow-tailed field.
+  const markScale = 56 / MDC_MARK_W;
+  const markX = -82;
+  const markY = 97 - (MDC_MARK_H * markScale) / 2;
   return (
-    <svg viewBox="0 0 420 200" className="block h-auto w-full drop-shadow-[0_18px_30px_rgba(0,0,0,0.4)]">
+    <svg viewBox={`${VB_X} 0 ${VB_W} ${VB_H}`} className="block h-auto w-full drop-shadow-[0_18px_30px_rgba(0,0,0,0.45)]">
       <defs>
         <linearGradient id="shk-counter" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--shark-body)" />
-          <stop offset="0.56" stopColor="var(--shark-body)" />
-          <stop offset="0.64" stopColor="var(--shark-belly)" />
+          <stop offset="0.52" stopColor="var(--shark-body)" />
+          <stop offset="0.72" stopColor="var(--shark-belly)" />
           <stop offset="1" stopColor="var(--shark-belly)" />
         </linearGradient>
         <linearGradient id="shk-fin" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="var(--shark-body)" />
-          <stop offset="1" stopColor="color-mix(in srgb, var(--shark-body) 70%, #061a3a)" />
+          <stop offset="1" stopColor="color-mix(in srgb, var(--shark-body) 65%, #05090f)" />
+        </linearGradient>
+        <linearGradient id="shk-brow" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="rgba(5,9,15,0.9)" />
+          <stop offset="1" stopColor="rgba(5,9,15,0)" />
         </linearGradient>
       </defs>
 
-      {/* caudal (tail) fin */}
-      <g className="shark-tail" style={{ transformOrigin: "96px 100px" }}>
-        <path d="M100 92 C78 60 56 34 30 22 C40 54 52 78 70 98 C52 118 40 146 36 174 C60 160 82 134 100 110 Z" fill="url(#shk-fin)" />
+      {/* caudal (tail) fin: long upper lobe, with the towed pennant riding on it */}
+      <g className="shark-tail" style={{ transformOrigin: "100px 100px" }}>
+        <path d="M106 94 C86 66 70 40 56 10 C56 50 68 82 82 98 C68 116 58 138 56 164 C70 142 86 122 106 106 Z" fill="url(#shk-fin)" />
+
+        {/* tow line from the tail notch */}
+        <path d="M82 98 C58 99 30 98 -4 97" stroke="rgba(5,9,15,0.75)" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+
+        <g className="shark-flag" style={{ transformBox: "fill-box", transformOrigin: "right center" }}>
+          {/* pennant: white field, dark hem, swallow-tailed trailing edge */}
+          <path d="M-6 72 L-6 122 L-112 122 L-94 97 L-112 72 Z" fill="#f7f9fb" stroke="#0b1b33" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d="M-6 72 L-6 122" stroke="#0b1b33" strokeWidth="5" strokeLinecap="round" />
+          {/* the mark stays readable when the shark is mirrored */}
+          <g style={{ transform: "scaleX(var(--face, 1))", transformBox: "fill-box", transformOrigin: "center" }}>
+            <MdcMarkShapes fill="#0b1b33" transform={`translate(${markX} ${markY}) scale(${markScale})`} />
+          </g>
+        </g>
       </g>
 
       {/* pelvic + anal fins (behind body) */}
-      <path d="M186 136 C176 150 164 160 150 164 L192 146 Z" fill="url(#shk-fin)" />
-      <path d="M126 124 C120 134 112 140 102 142 L132 130 Z" fill="url(#shk-fin)" />
+      <path d="M192 134 C184 148 174 156 160 160 L198 144 Z" fill="url(#shk-fin)" />
+      <path d="M132 126 C126 136 120 142 110 144 L138 132 Z" fill="url(#shk-fin)" />
 
-      {/* body */}
+      {/* body: deep through the shoulders, drawn out to a sharp snout */}
       <path
-        d="M412 104 C390 76 338 56 262 54 C204 54 150 66 104 90 L96 100 L104 112 C150 136 220 146 312 134 C350 128 386 118 412 104 Z"
+        d="M420 97 C404 72 354 52 282 52 C212 50 150 68 106 92 L94 100 L106 108 C150 134 212 148 282 144 C352 142 400 126 420 97 Z"
         fill="url(#shk-counter)"
       />
+      {/* faint lateral line */}
+      <path d="M126 101 C210 96 300 95 390 99" stroke="rgba(255,255,255,0.12)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
 
-      {/* dorsal fins */}
-      <path d="M190 58 C204 30 228 10 262 4 C250 26 258 44 274 55 Z" fill="url(#shk-fin)" />
-      <path d="M118 84 C122 72 130 66 140 64 C136 74 138 80 144 84 Z" fill="url(#shk-fin)" />
+      {/* old scars across the flank */}
+      <path d="M236 84 l12 18 M248 80 l12 18 M262 86 l9 14" stroke="rgba(236,240,244,0.32)" strokeWidth="1.8" strokeLinecap="round" fill="none" />
+
+      {/* dorsal fins: tall, hooked, with a bite taken out of the trailing edge */}
+      <path d="M200 60 C214 34 238 16 264 10 C256 24 252 34 256 42 L248 44 C250 50 258 55 268 58 Z" fill="url(#shk-fin)" />
+      <path d="M128 84 C132 74 140 68 148 66 C144 74 146 80 152 84 Z" fill="url(#shk-fin)" />
 
       {/* pectoral fin (in front) */}
-      <g className="shark-fin" style={{ transformOrigin: "300px 132px" }}>
-        <path d="M292 130 C272 152 244 174 226 180 C246 168 272 146 304 134 Z" fill="url(#shk-fin)" />
+      <g className="shark-fin" style={{ transformOrigin: "306px 132px" }}>
+        <path d="M300 128 C282 150 256 168 234 174 C254 160 280 142 314 132 Z" fill="url(#shk-fin)" />
       </g>
 
-      {/* gill slits */}
+      {/* gill slits, cut deep */}
       <path
-        d="M286 86 c-4 10 -4 20 0 30 M298 84 c-4 11 -4 22 0 33 M310 83 c-4 12 -4 24 0 36 M322 84 c-3 11 -3 22 0 33"
-        stroke="rgba(6,26,58,0.45)"
-        strokeWidth="2.5"
+        d="M302 84 c-5 11 -5 23 0 34 M314 82 c-5 12 -5 25 0 37 M326 81 c-5 13 -5 26 0 39 M338 81 c-4 13 -4 26 0 39 M350 82 c-4 12 -4 24 0 36"
+        stroke="rgba(5,9,15,0.55)"
+        strokeWidth="2.4"
         strokeLinecap="round"
         fill="none"
       />
 
-      {/* grin: dark mouth line with a row of teeth above it */}
-      <path d="M318 120 C348 128 382 120 406 106" stroke="#0b1b33" strokeWidth="3" strokeLinecap="round" fill="none" />
+      {/* jaw hanging open: dark mouth, upper and lower rows of teeth */}
+      <path d="M360 108 C378 106 398 104 417 100 L411 112 C396 122 378 124 362 118 Z" fill="#1a0b10" />
       <path
-        d="M322 118 l5 -7 5 8 6 -8 5 9 6 -9 5 9 6 -9 5 9 6 -10 5 9 6 -10 5 8 5 -9"
-        fill="#fff"
-        stroke="#0b1b33"
-        strokeWidth="1.2"
+        d="M364 108 L368 116 L372 107 L376 115 L380 106 L384 114 L388 105 L392 113 L396 104 L400 111 L404 103 L408 109 L412 101 L415 100 L360 108 Z"
+        fill="#f3f4f6"
+        stroke="rgba(5,9,15,0.6)"
+        strokeWidth="0.8"
         strokeLinejoin="round"
       />
+      <path
+        d="M364 118 L368 112 L372 119 L376 113 L380 120 L384 114 L388 120 L392 114 L396 119 L400 113 L404 117 L408 112 L411 112 C396 122 378 124 362 118 Z"
+        fill="#f3f4f6"
+        stroke="rgba(5,9,15,0.6)"
+        strokeWidth="0.8"
+        strokeLinejoin="round"
+      />
+      <path d="M360 108 C378 106 398 104 417 100" stroke="rgba(5,9,15,0.8)" strokeWidth="2" strokeLinecap="round" fill="none" />
 
       {/* nostril */}
-      <circle cx="392" cy="98" r="1.8" fill="rgba(6,26,58,0.5)" />
+      <path d="M398 93 c2 1 4 1 6 0" stroke="rgba(5,9,15,0.6)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
 
-      {/* eye with a brow for attitude; faint glow in the deep */}
-      <circle cx="356" cy="84" r="12" fill="rgba(125,211,252,0.9)" className="blur-[3px]" style={{ opacity: "var(--eye-glow)" }} />
-      <circle cx="356" cy="84" r="8" fill="#fff" />
-      <circle cx="358" cy="85" r="4.6" fill="#071226" />
-      <circle cx="360" cy="83" r="1.4" fill="#fff" />
-      <path d="M342 72 L372 78" stroke="#0b1b33" strokeWidth="4" strokeLinecap="round" />
+      {/* eye: small, black and deep-set under a heavy brow; it smoulders red in the deep */}
+      <circle cx="372" cy="87" r="11" fill="rgba(248,113,113,0.95)" className="blur-[3px]" style={{ opacity: "var(--eye-glow)" }} />
+      <ellipse cx="372" cy="87" rx="6" ry="5" fill="#05090f" />
+      <ellipse cx="372" cy="87" rx="6" ry="5" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
+      <circle cx="374" cy="85.5" r="1.1" fill="#fff" />
+      {/* brow ridge: slopes down toward the snout, shadowing the eye */}
+      <path d="M352 82 C362 74 378 74 392 82 L390 88 C378 80 364 80 354 88 Z" fill="url(#shk-brow)" />
+      <path d="M354 83 C364 76 378 76 391 83" stroke="#05090f" strokeWidth="3.2" strokeLinecap="round" fill="none" />
     </svg>
   );
 }

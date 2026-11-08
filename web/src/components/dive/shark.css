@@ -1,20 +1,50 @@
+/*
+ * Shark motion. The tail and pectoral fin sway on their own; the whole fish
+ * bobs and drifts a little while idle. While the shark is crossing the screen
+ * (data-swimming on the wrapper) the tail beats faster and the bob stops, so
+ * the propulsion reads as coming from the tail rather than the path.
+ */
 @keyframes shark-tail-sway {
-  0%, 100% { transform: rotate(-9deg); }
-  50% { transform: rotate(9deg); }
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(7deg); }
 }
 @keyframes shark-fin-sway {
-  0%, 100% { transform: rotate(4deg); }
-  50% { transform: rotate(-5deg); }
+  0%, 100% { transform: rotate(3deg); }
+  50% { transform: rotate(-4deg); }
 }
 @keyframes shark-bob {
-  0%, 100% { translate: 0 0; }
-  50% { translate: 0 -6px; }
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50% { translate: 6px -5px; rotate: -1.2deg; }
+}
+@keyframes shark-flag-flutter {
+  0%, 100% { transform: skewY(0deg) translateY(0); }
+  25% { transform: skewY(3deg) translateY(-1px); }
+  50% { transform: skewY(0deg) translateY(1px); }
+  75% { transform: skewY(-3deg) translateY(-0.5px); }
 }
 
-.shark-tail { animation: shark-tail-sway 0.9s ease-in-out infinite; }
-.shark-fin { animation: shark-fin-sway 1.6s ease-in-out infinite; }
-.shark-bob > svg { animation: shark-bob 3.2s ease-in-out infinite; }
+.shark-tail {
+  animation: shark-tail-sway var(--tail-period, 1.4s) ease-in-out infinite;
+}
+.shark-fin {
+  animation: shark-fin-sway 2.4s ease-in-out infinite;
+}
+.shark-flag {
+  animation: shark-flag-flutter var(--flag-period, 1.1s) ease-in-out infinite;
+}
+.shark-bob > svg {
+  animation: shark-bob 4.2s ease-in-out infinite;
+}
+
+/* Crossing the screen: faster tail beat and flag flutter, no idle bob. */
+.shark-bob[data-swimming] {
+  --tail-period: 0.6s;
+  --flag-period: 0.45s;
+}
+.shark-bob[data-swimming] > svg {
+  animation: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .shark-tail, .shark-fin, .shark-bob > svg { animation: none; }
+  .shark-tail, .shark-fin, .shark-flag, .shark-bob > svg { animation: none; }
 }
