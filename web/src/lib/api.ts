@@ -19,12 +19,41 @@ export type QuizStep = {
   in_range: FieldMatch[];
 };
 
+export type CareerHighlight = {
+  title: string;
+  median_pay: number;
+  pay_year: number;
+  outlook: string; // e.g. "6% (Faster than average)"
+  outlook_period: string;
+  source_url: string;
+};
+
+export type StudyHighlight = {
+  path: string; // e.g. "A.S. then B.S."
+  credits: number;
+  years: number;
+  est_cost: number; // in-state tuition + fees before aid
+  source_url: string;
+  cost_source_url: string;
+};
+
 export type Major = {
   slug: string;
   name: string;
   field: string;
   mdc_program: string;
   summary: string;
+  mdc_url?: string | null;
+  career?: CareerHighlight | null;
+  study?: StudyHighlight | null;
+};
+
+export type CourseRef = {
+  code: string;
+  title: string;
+  credits: number;
+  note?: string | null;
+  prepares_for?: string | null;
 };
 
 export type RoadmapStep = {
@@ -34,6 +63,15 @@ export type RoadmapStep = {
   detail: string;
   duration: string;
   depends_on: string[];
+  courses?: CourseRef[];
+  source_url?: string | null;
+};
+
+export type RoadmapExplanation = {
+  summary: string;
+  step_notes: { id: string; note: string }[];
+  first_move: string;
+  generated_by: string;
 };
 
 export type Roadmap = {
@@ -41,6 +79,25 @@ export type Roadmap = {
   summary: string;
   steps: RoadmapStep[];
   generated_by: string;
+  /** Plain-language notes from Gemini; older saved copies may not have it. */
+  explanation?: RoadmapExplanation | null;
+};
+
+export type StepFact = { label: string; value: string; source_url?: string | null };
+
+export type StepElaboration = {
+  step_id: string;
+  headline: string;
+  overview: string;
+  specs: StepFact[];
+  what_to_expect: string[];
+  how_to_prepare: string[];
+  questions_to_ask: string[];
+  leads_to: string;
+  generated_by: string;
+  /** Official MDC facts for this step (tuition, admission, program), each with its mdc.edu source. */
+  mdc_facts?: StepFact[];
+  mdc_checked_on?: string | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -116,4 +173,11 @@ export const api = {
     request<QuizStep>("/quiz/step", { method: "POST", body: JSON.stringify({ answers }) }),
   majors: () => request<Major[]>("/majors"),
   roadmap: (slug: string) => request<Roadmap>(`/roadmap/${slug}`),
+  /** Gemini's closer look at one step. Throws on 503 (no Gemini key) or 404 (step not in roadmap). */
+  elaborate: (roadmap: Roadmap, stepId: string, signal?: AbortSignal, majorSlug?: string) =>
+    request<StepElaboration>("/roadmap/elaborate", {
+      method: "POST",
+      body: JSON.stringify({ roadmap, step_id: stepId, major_slug: majorSlug ?? null }),
+      signal,
+    }),
 };

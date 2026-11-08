@@ -12,7 +12,17 @@ type Props = {
   activeIndex: number;
   /** False on the surface. When it flips true the rail unrolls to full height. */
   armed: boolean;
+  /** Called with a stage index when its checkpoint diamond is clicked. */
+  onSelect?: (index: number) => void;
+  /** Whether a diamond can be clicked right now (reached, or every question above it answered). */
+  canSelect?: (index: number) => boolean;
 };
+
+function stageLabel(i: number, last: number) {
+  if (i === 0) return "Back to the surface";
+  if (i === last) return "Go to the ocean floor";
+  return `Go to question ${i}`;
+}
 
 const ZONE_TICKS = [0, 200, 1000, 2500, MAX_METERS];
 const MINOR_TICKS = [40, 100, 400, 600, 800, 1200, 1500, 2000, 3000, 3500];
@@ -22,7 +32,7 @@ const MINOR_TICKS = [40, 100, 400, 600, 800, 1200, 1500, 2000, 3000, 3500];
  * Hidden on the surface; unrolls downward when the calibration starts. Solid
  * panel, no blur, and the only glow is on the readout digits.
  */
-export function DepthGauge({ meters, marks, activeIndex, armed }: Props) {
+export function DepthGauge({ meters, marks, activeIndex, armed, onSelect, canSelect }: Props) {
   const [m, setM] = useState(0);
   useMotionValueEvent(meters, "change", (v) => {
     const r = Math.round(v);
@@ -67,10 +77,17 @@ export function DepthGauge({ meters, marks, activeIndex, armed }: Props) {
 
           {marks.map((mark, i) => {
             const reached = i <= reachedIdx;
+            const clickable = Boolean(onSelect) && i !== activeIndex && (canSelect ? canSelect(i) : reached);
+            // Same 7px diamond as before; a clickable one gets an invisible, larger hit area (the ::before box).
             return (
-              <span
+              <button
                 key={`${mark}-${i}`}
-                className="absolute left-[11px] block h-[7px] w-[7px] -translate-y-1/2 rotate-45 transition-colors duration-700"
+                type="button"
+                aria-label={stageLabel(i, marks.length - 1)}
+                aria-current={i === activeIndex ? "step" : undefined}
+                disabled={!clickable}
+                onClick={() => onSelect?.(i)}
+                className={`absolute left-[11px] block h-[7px] w-[7px] -translate-y-1/2 rotate-45 appearance-none border-0 p-0 transition-colors duration-700 before:absolute before:-inset-2.5 before:content-[''] focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#040b16] focus-visible:outline-none ${clickable ? "pointer-events-auto cursor-pointer" : "pointer-events-none"}`}
                 style={{
                   top: `${railPosition(mark, marks) * 100}%`,
                   background: reached ? accent : "#040b16",

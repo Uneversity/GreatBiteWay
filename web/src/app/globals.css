@@ -12,9 +12,59 @@ body {
   font-optical-sizing: auto;
 }
 
-h1, h2, h3, .font-display {
+h1, h2, h3:not(.font-mono), .font-display {
   font-family: var(--font-fraunces), Georgia, serif;
   font-optical-sizing: auto;
   font-variation-settings: "SOFT" 30;
   letter-spacing: -0.015em;
+}
+
+/* Roadmap descent: the only motion is a slow waterline drift and a crawl along the connectors. */
+@keyframes waterline-drift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.waterline {
+  animation: waterline-drift 22s linear infinite;
+  will-change: transform;
+}
+@keyframes edge-flow {
+  to { stroke-dashoffset: -24; }
+}
+.edge-flow {
+  stroke-dasharray: 6 6;
+  animation: edge-flow 3s linear infinite;
+}
+/* Loading mark: the MDC logo turning like a coin. */
+@keyframes mdc-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+@keyframes mdc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.mdc-spin {
+  animation: mdc-spin 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform-style: preserve-3d;
+}
+
+/* Major illustrations trace themselves in when their card opens (every shape has pathLength=1). */
+.glyph-draw > * {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 0s;
+}
+[data-open] .glyph-draw > * {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.12s;
+}
+[data-open] .glyph-draw > *:nth-child(2) { transition-delay: 0.22s; }
+[data-open] .glyph-draw > *:nth-child(3) { transition-delay: 0.32s; }
+[data-open] .glyph-draw > *:nth-child(n + 4) { transition-delay: 0.42s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .waterline, .edge-flow { animation: none; }
+  .mdc-spin { animation: mdc-pulse 1.6s ease-in-out infinite; }
+  .glyph-draw > *, [data-open] .glyph-draw > * { stroke-dashoffset: 0; transition: none; }
 }

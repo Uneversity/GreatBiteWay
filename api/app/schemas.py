@@ -63,6 +63,24 @@ class SemanticMatch(BaseModel):
     profile_text: str  # the text that was embedded, for transparency/debugging
 
 
+class CareerHighlight(BaseModel):
+    title: str
+    median_pay: int  # US dollars a year
+    pay_year: int
+    outlook: str  # e.g. "6% (Faster than average)"
+    outlook_period: str
+    source_url: str
+
+
+class StudyHighlight(BaseModel):
+    path: str  # e.g. "A.S. then B.S."
+    credits: int
+    years: int  # typical full-time
+    est_cost: int  # in-state tuition + fees, US dollars, before aid
+    source_url: str  # the program page the credits come from
+    cost_source_url: str  # MDC's tuition page
+
+
 class Major(BaseModel):
     slug: str
     name: str
@@ -70,6 +88,8 @@ class Major(BaseModel):
     mdc_program: str
     summary: str
     mdc_url: str | None = None
+    career: CareerHighlight | None = None
+    study: StudyHighlight | None = None
 
 
 class CourseRef(BaseModel):
@@ -160,3 +180,32 @@ class Me(BaseModel):
 class ExplainRequest(BaseModel):
     roadmap: Roadmap
     answers: list[Answer] = []  # optional: lets Gemini tie the pathway to the student's interests
+
+
+class ElaborateRequest(BaseModel):
+    roadmap: Roadmap
+    step_id: str
+    major_slug: str | None = None  # picks the official MDC facts; matched from roadmap.career when omitted
+
+
+class StepFact(BaseModel):
+    label: str  # e.g. "Format", "Who it's for"
+    value: str
+    source_url: str | None = None  # set on official MDC facts
+
+
+class StepElaboration(BaseModel):
+    """A deeper look at one roadmap step, shown in the side panel when a student clicks it."""
+    step_id: str
+    headline: str
+    overview: str
+    specs: list[StepFact]  # quick facts: format, length, cost notes, where it happens
+    what_to_expect: list[str]
+    how_to_prepare: list[str]
+    questions_to_ask: list[str]  # for an MDC advisor
+    leads_to: str  # how this step sets up the next one
+    generated_by: str
+    # Official MDC facts for this step (tuition, admission, program details), copied from mdc.edu.
+    # Gemini's text is grounded in these, but they're sent as-is so the page can show them with sources.
+    mdc_facts: list[StepFact] = []
+    mdc_checked_on: str | None = None

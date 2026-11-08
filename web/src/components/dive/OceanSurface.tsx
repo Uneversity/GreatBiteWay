@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { MotionValue } from "motion/react";
 import { useReducedMotion } from "motion/react";
 import { ramp } from "@/lib/depth";
+import { compileProgramAsync } from "@/lib/gl";
 
 /**
  * Half-submerged ocean rendered in a WebGL fragment shader.
@@ -30,111 +31,109 @@ export function OceanSurface({ meters, surface }: { meters: MotionValue<number>;
     const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "high-performance" });
     if (!gl) return;
 
-    const compile = (type: number, src: string) => {
-      const sh = gl.createShader(type);
-      if (!sh) return null;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.error("[OceanSurface] shader error:", gl.getShaderInfoLog(sh));
-        return null;
-      }
-      return sh;
-    };
-    const vs = compile(gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-    const prog = gl.createProgram();
-    if (!vs || !fs || !prog) return;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error("[OceanSurface] link error:", gl.getProgramInfoLog(prog));
-      return;
-    }
-    gl.useProgram(prog);
-
-    // Fullscreen triangle
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    const uRes = gl.getUniformLocation(prog, "u_res");
-    const uTime = gl.getUniformLocation(prog, "u_time");
-    const uCamY = gl.getUniformLocation(prog, "u_camY");
-    const uHorizon = gl.getUniformLocation(prog, "u_horizon");
-
-    // Internal resolution is capped by a pixel budget and lowered if frames get slow.
-    let budget = 900_000;
-    let w = 0;
-    let h = 0;
-    const fit = () => {
-      const cw = window.innerWidth;
-      const ch = window.innerHeight;
-      const scale = Math.min(1, Math.sqrt(budget / (cw * ch)));
-      w = Math.max(2, Math.round(cw * scale));
-      h = Math.max(2, Math.round(ch * scale));
-      canvas.width = w;
-      canvas.height = h;
-      canvas.style.width = `${cw}px`;
-      canvas.style.height = `${ch}px`;
-      gl.viewport(0, 0, w, h);
-    };
-    fit();
-    window.addEventListener("resize", fit);
-
+    // Nothing is drawn until the program is ready; the CSS backdrop shows meanwhile.
     let raf = 0;
-    let prev = performance.now();
-    let simT = 0;
-    let avg = 16;
-    let frames = 0;
+    let teardown = () => {};
+    const fitRef = { current: () => {} };
+    const onResize = () => fitRef.current();
 
-    const frame = (now: number) => {
-      const dt = Math.min(0.05, (now - prev) / 1000);
-      const interval = now - prev;
-      prev = now;
+    const cancelCompile = compileProgramAsync(gl, VERT, FRAG, {
+      label: "OceanSurface",
+      onFail: () => {},
+      onReady: ({ prog, vs, fs }) => {
+        gl.useProgram(prog);
 
-      const m = meters.get();
-      const opacity = 1 - ramp(m, 18, 48);
-      canvas.style.opacity = opacity.toFixed(3);
-      if (opacity <= 0.001) {
-        raf = requestAnimationFrame(frame);
-        return;
-      }
+        // Fullscreen triangle
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        const aPos = gl.getAttribLocation(prog, "a_pos");
+        gl.enableVertexAttribArray(aPos);
+        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-      if (!reduced) simT += dt;
-      avg = avg * 0.9 + interval * 0.1;
-      if (++frames % 90 === 0 && avg > 26 && budget > 320_000) {
-        budget *= 0.72;
+        const uRes = gl.getUniformLocation(prog, "u_res");
+        const uTime = gl.getUniformLocation(prog, "u_time");
+        const uCamY = gl.getUniformLocation(prog, "u_camY");
+        const uHorizon = gl.getUniformLocation(prog, "u_horizon");
+
+        // Internal resolution is capped by a pixel budget and lowered if frames get slow.
+        let budget = 900_000;
+        let w = 0;
+        let h = 0;
+        const fit = () => {
+          const cw = window.innerWidth;
+          const ch = window.innerHeight;
+          const scale = Math.min(1, Math.sqrt(budget / (cw * ch)));
+          w = Math.max(2, Math.round(cw * scale));
+          h = Math.max(2, Math.round(ch * scale));
+          canvas.width = w;
+          canvas.height = h;
+          canvas.style.width = `${cw}px`;
+          canvas.style.height = `${ch}px`;
+          gl.viewport(0, 0, w, h);
+        };
+        fitRef.current = fit;
         fit();
-      }
+        window.addEventListener("resize", onResize);
 
-      const bob = reduced ? 0 : Math.sin(simT * 0.6) * 0.03 * (1 - ramp(m, 0, 8));
-      gl.uniform2f(uRes, w, h);
-      gl.uniform1f(uTime, simT);
-      gl.uniform1f(uCamY, -m * 0.1 + bob);
-      gl.uniform1f(uHorizon, surface.get());
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+        let prev = performance.now();
+        const readyAt = prev;
+        let simT = 0;
+        let avg = 16;
+        let frames = 0;
+
+        const frame = (now: number) => {
+          const dt = Math.min(0.05, (now - prev) / 1000);
+          const interval = now - prev;
+          prev = now;
+
+          const m = meters.get();
+          // Fade in over the CSS backdrop once ready, and out as the camera sinks.
+          const fadeIn = Math.min(1, (now - readyAt) / 450);
+          const opacity = (1 - ramp(m, 18, 48)) * fadeIn;
+          canvas.style.opacity = opacity.toFixed(3);
+          if (opacity <= 0.001 && fadeIn >= 1) {
+            raf = requestAnimationFrame(frame);
+            return;
+          }
+
+          if (!reduced) simT += dt;
+          avg = avg * 0.9 + interval * 0.1;
+          if (++frames % 90 === 0 && avg > 26 && budget > 320_000) {
+            budget *= 0.72;
+            fit();
+          }
+
+          const bob = reduced ? 0 : Math.sin(simT * 0.6) * 0.03 * (1 - ramp(m, 0, 8));
+          gl.uniform2f(uRes, w, h);
+          gl.uniform1f(uTime, simT);
+          gl.uniform1f(uCamY, -m * 0.1 + bob);
+          gl.uniform1f(uHorizon, surface.get());
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+          raf = requestAnimationFrame(frame);
+        };
+        raf = requestAnimationFrame(frame);
+
+        teardown = () => {
+          gl.deleteProgram(prog);
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          gl.deleteBuffer(buf);
+        };
+      },
+    });
 
     return () => {
       // Note: never loseContext() here — React StrictMode re-runs this effect on the
       // same canvas, and a lost context can't be re-created.
+      cancelCompile();
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", fit);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
+      window.removeEventListener("resize", onResize);
+      teardown();
     };
   }, [meters, surface, reduced]);
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-[-5]" />;
+  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-[-5]" style={{ opacity: 0 }} />;
 }
 
 const VERT = /* glsl */ `

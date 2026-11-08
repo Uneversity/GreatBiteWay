@@ -70,15 +70,18 @@ export function Checkpoint({ index, total, question, meters, selected, inRange, 
         </div>
 
         <div className="border-t border-white/10">
-          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-6 gap-y-2 px-6 py-3 font-mono text-[11px] tracking-[0.16em] uppercase sm:px-12">
+          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-10 gap-y-4 px-6 py-4 font-mono text-[11px] tracking-[0.16em] uppercase sm:px-12">
             <button
               type="button"
               onClick={onContinue}
               disabled={!ready}
-              className="py-1 transition-colors disabled:cursor-not-allowed disabled:text-white/30"
+              className="group py-1 text-[13px] font-semibold transition-colors duration-300 disabled:cursor-not-allowed disabled:text-white/30"
               style={{ color: ready ? accent : undefined }}
             >
-              {isLast ? "Reach the floor ↓" : "Descend ↓"}
+              {isLast ? "Reach the floor" : "Descend"}{" "}
+              <span aria-hidden className="inline-block transition-transform duration-300 group-enabled:group-hover:translate-y-0.5">
+                ↓
+              </span>
             </button>
             <span className="text-white/40">
               {index} / {total}

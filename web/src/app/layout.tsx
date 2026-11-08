@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Fraunces, IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
 import { AuthButton } from "@/components/AuthButton";
+import { MdcMark } from "@/components/MdcMark";
 import "./globals.css";
 
 // Editorial pairing: Fraunces for display, Source Serif for reading, Plex Mono for instrument labels.
@@ -26,7 +27,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-sky-950">
         <header className="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-white/10 bg-[#040b16] px-5 text-white sm:px-8">
           <Link href="/" className="font-display flex items-center gap-3 text-lg font-semibold tracking-tight">
-            <span aria-hidden className="inline-block h-2.5 w-2.5 bg-cyan-300" />
+            <MdcMark className="h-[22px] w-auto shrink-0 text-white" />
+            <span className="hidden h-5 w-px bg-white/20 sm:block" aria-hidden />
             Shark Pathways
           </Link>
           <nav className="flex items-center gap-1 font-mono text-[11px] tracking-[0.14em] text-white/75 uppercase">
