@@ -19,7 +19,9 @@ from app.config import get_settings
 log = logging.getLogger(__name__)
 
 EMBED_DIM = 768  # must match vector(768) in db/schema.sql (pgvector indexes cap at 2000 dims)
-TIMEOUT_MS = 30_000
+TIMEOUT_MS = 20_000
+# Retry rate limits and "high demand" 503s a couple of times before giving up on a model.
+RETRY = types.HttpRetryOptions(attempts=3, initial_delay=1.0, max_delay=4.0, http_status_codes=[429, 500, 503])
 
 TaskType = Literal["RETRIEVAL_QUERY", "RETRIEVAL_DOCUMENT", "SEMANTIC_SIMILARITY"]
 T = TypeVar("T", bound=BaseModel)
@@ -30,7 +32,7 @@ def _client() -> genai.Client | None:
     key = get_settings().gemini_api_key
     if not key:
         return None
-    return genai.Client(api_key=key, http_options=types.HttpOptions(timeout=TIMEOUT_MS))
+    return genai.Client(api_key=key, http_options=types.HttpOptions(timeout=TIMEOUT_MS, retry_options=RETRY))
 
 
 def available() -> bool:
@@ -43,29 +45,35 @@ async def generate_json(
     *,
     system: str,
     temperature: float = 0.4,
+    fast: bool = False,
 ) -> T | None:
-    """Structured output: Gemini is constrained to `schema` and the reply is validated."""
+    """Structured output: Gemini is constrained to `schema` and the reply is validated.
+    Tries the main model (with retries), then the fallback model.
+    `fast` turns thinking down to minimal, for calls a student is waiting on."""
     client = _client()
     if not client:
         return None
-    try:
-        resp = await client.aio.models.generate_content(
-            model=get_settings().gemini_model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                temperature=temperature,
-                response_mime_type="application/json",
-                response_schema=schema,
-            ),
-        )
-        if isinstance(resp.parsed, schema):
-            return resp.parsed
-        return schema.model_validate_json(resp.text or "")
-    except ValidationError as e:
-        log.warning("Gemini returned JSON that failed %s validation: %s", schema.__name__, e)
-    except Exception as e:  # network, quota, safety block: all mean "fall back"
-        log.warning("Gemini generate_content failed: %s", e)
+    s = get_settings()
+    for model in dict.fromkeys(m for m in (s.gemini_model, s.gemini_fallback_model) if m):
+        try:
+            resp = await client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    temperature=temperature,
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    thinking_config=types.ThinkingConfig(thinking_level="minimal") if fast else None,
+                ),
+            )
+            if isinstance(resp.parsed, schema):
+                return resp.parsed
+            return schema.model_validate_json(resp.text or "")
+        except ValidationError as e:
+            log.warning("Gemini (%s) returned JSON that failed %s validation: %s", model, schema.__name__, e)
+        except Exception as e:  # network, quota, overload, safety block: try the next model, then fall back
+            log.warning("Gemini (%s) generate_content failed: %s", model, e)
     return None
 
 

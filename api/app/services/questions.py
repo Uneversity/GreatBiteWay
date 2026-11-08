@@ -99,7 +99,7 @@ async def next_question(answers: list[Answer], use_gemini: bool = True) -> NextQ
 
     if use_gemini:
         gen = await gemini.generate_json(
-            _prompt(answers, contenders, focus_traits), _GenQuestion, system=SYSTEM, temperature=0.8
+            _prompt(answers, contenders, focus_traits), _GenQuestion, system=SYSTEM, temperature=0.8, fast=True
         )
         asked = {a.question_id for a in answers}
         if gen and (q := _to_question(gen)) and q.id not in asked:

@@ -152,6 +152,7 @@ def test_endpoints_without_database():
 
 # ---------------------------------------------------------------- real database (opt-in)
 
+@pytest.mark.live
 @pytest.mark.skipif(os.getenv("TIGER_TESTS") != "1", reason="set TIGER_TESTS=1 to run against DATABASE_URL")
 def test_against_tiger_cloud():
     import asyncio

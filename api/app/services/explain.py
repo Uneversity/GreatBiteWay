@@ -87,7 +87,7 @@ async def explain_roadmap(roadmap: Roadmap, answers: list[Answer] | None = None)
         summary=gen.summary.strip(),
         step_notes=notes,
         first_move=gen.first_move.strip(),
-        generated_by=f"Gemini ({get_settings().gemini_model})",
+        generated_by="Gemini",
     )
     _cache[key] = result
     if len(_cache) > _CACHE_SIZE:
