@@ -14,8 +14,6 @@ import re
 import sys
 from pathlib import Path
 
-from pgvector.asyncpg import register_vector
-
 from app.data import FIELDS, MAJORS, QUESTIONS, TRAIT_DESCRIPTIONS, TRAITS
 from app.services import db, gemini
 from app.services.embeddings import field_document
@@ -163,7 +161,7 @@ async def main(skip_embeddings: bool) -> int:
             for stmt in schema_statements(SCHEMA.read_text(encoding="utf-8")):
                 await conn.execute(stmt)
             print("Schema applied")
-            await register_vector(conn)  # the extension may have just been created
+            await db.init_connection(conn)  # pgvector may have just been created
             async with conn.transaction():
                 await seed_catalog(conn)
                 await seed_pathways(conn, data)

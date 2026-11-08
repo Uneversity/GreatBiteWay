@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import insights, majors, quiz, roadmap
-from app.services import catalog, db
+from app.services import catalog, db, events
 
 
 @asynccontextmanager
@@ -13,6 +13,7 @@ async def lifespan(_: FastAPI):
     await db.connect()
     await catalog.load_from_db()
     yield
+    await events.drain()
     await db.disconnect()
 
 

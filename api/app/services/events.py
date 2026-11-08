@@ -32,6 +32,12 @@ def log_step(answers: list[Answer], step: QuizStep, session_id: str | None) -> N
     task.add_done_callback(_pending.discard)
 
 
+async def drain() -> None:
+    """Wait for in-flight inserts (called on shutdown, before the pool closes)."""
+    if _pending:
+        await asyncio.gather(*_pending, return_exceptions=True)
+
+
 async def _insert(*values) -> None:
     try:
         await db.pool.execute(
