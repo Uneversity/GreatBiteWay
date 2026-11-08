@@ -16,16 +16,16 @@ from app.data import FIELDS, TRAIT_DESCRIPTIONS, TRAITS
 from app.schemas import Answer, NextQuestion, Option, Question
 from app.services import gemini
 from app.services.matching import (
-    DONE_CONFIDENCE,
     clamp_traits,
     discriminating_traits,
+    is_decided,
     match,
     most_informative_question,
     ranked,
     resolve_answer,
 )
 
-MAX_QUESTIONS = 10  # hard cap so the dive always reaches the floor
+MAX_QUESTIONS = 12  # hard cap so the dive always reaches the floor
 FOCUS_FIELDS = 3
 MIN_OPTIONS, MAX_OPTIONS = 3, 5
 
@@ -94,7 +94,7 @@ async def next_question(answers: list[Answer], use_gemini: bool = True) -> NextQ
     focus = [match(s, p) for s, p in contenders]
     focus_traits = discriminating_traits([s for s, _ in contenders])
 
-    if order[0][1] >= DONE_CONFIDENCE or len(answers) >= MAX_QUESTIONS:
+    if is_decided(order, len(answers)) or len(answers) >= MAX_QUESTIONS:
         return NextQuestion(done=True, question=None, source="none", focus=focus, focus_traits=focus_traits)
 
     if use_gemini:

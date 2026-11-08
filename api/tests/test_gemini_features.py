@@ -94,11 +94,20 @@ def test_bad_gemini_output_falls_back(client, monkeypatch, bad):
     assert client.post("/quiz/next", json={"answers": []}).json()["source"] == "bank"
 
 
+CULINARY = [("q_weekend", 2), ("q_workspace", 3), ("q_pressure", 2), ("q_problem", 3), ("q_compliment", 3)]
+
+
+def test_next_question_not_done_before_min_answers(client, no_gemini):
+    answers = [{"question_id": q, "value": v} for q, v in CULINARY[:4]]
+    r = client.post("/quiz/next", json={"answers": answers}).json()
+    assert not r["done"] and r["question"] is not None
+
+
 def test_next_question_done_when_confident(client, no_gemini):
-    answers = [{"question_id": q, "value": v} for q, v in
-               [("q_weekend", 2), ("q_team", 1), ("q_workspace", 2), ("q_impact", 2), ("q_math", 2)]]
+    answers = [{"question_id": q, "value": v} for q, v in CULINARY]
     r = client.post("/quiz/next", json={"answers": answers}).json()
     assert r["done"] and r["question"] is None
+    assert r["focus"][0]["slug"] == "culinary-arts"
 
 
 # --- embeddings ----------------------------------------------------------------
@@ -121,7 +130,7 @@ async def fake_embed(texts, task_type):
 def test_semantic_match_in_memory(client, monkeypatch):
     monkeypatch.setattr(gemini, "embed", fake_embed)
     r = client.post("/quiz/semantic", json={
-        "answers": [{"question_id": "q_workspace", "value": 2}],
+        "answers": [{"question_id": "q_workspace", "value": 3}],
         "free_text": "I love cooking food in a busy kitchen for people",
     }).json()
     assert r["backend"] == "memory" and len(r["matches"]) == 5
@@ -167,7 +176,7 @@ def test_explain_endpoint_filters_and_orders_notes(client, monkeypatch):
     }).json()
     assert [n["id"] for n in r["step_notes"]] == ["s1", "s3"]
     assert r["first_move"] and r["generated_by"].startswith("Gemini")
-    assert "Keeping people and data safe" in fake_generate.last_prompt
+    assert "Keeping people and their data safe" in fake_generate.last_prompt
 
 
 def test_roadmap_without_key_keeps_fallback_summary(client, no_gemini):

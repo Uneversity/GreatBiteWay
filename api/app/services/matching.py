@@ -11,8 +11,13 @@ import math
 from app.data import FIELDS, QUESTIONS, TRAITS
 from app.schemas import Answer, FieldMatch, Option, Question, QuizStep
 
-TEMPERATURE = 0.35  # lower = sharper distribution = faster descent
+# Scoring = softmax over cosine similarity between the student's trait vector and
+# each field's profile. Tuned by simulating an "ideal" student for every field
+# (picks the closest option each time): all 15 rank their own field first.
+TEMPERATURE = 0.02  # lower = sharper distribution = faster descent
+PRIOR = 1.0  # pseudo-count added to every trait so one answer can't decide everything
 DONE_CONFIDENCE = 0.6
+MIN_ANSWERS = 5  # never call it before this many answers, however confident
 
 _BANK = {q["id"]: q for q in QUESTIONS}
 
@@ -45,14 +50,18 @@ def _student_profile(answers: list[Answer]) -> dict[str, float]:
     return profile
 
 
+def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
+    dot = sum(a[t] * b[t] for t in TRAITS)
+    na = math.sqrt(sum(a[t] ** 2 for t in TRAITS))
+    nb = math.sqrt(sum(b[t] ** 2 for t in TRAITS))
+    return dot / (na * nb) if na and nb else 0.0
+
+
 def _probabilities(profile: dict[str, float]) -> dict[str, float]:
-    total = sum(profile.values())
-    if total <= 0:
+    if sum(profile.values()) <= 0:
         return {k: 1 / len(FIELDS) for k in FIELDS}
-    raw = {
-        slug: sum(profile[t] / total * f["profile"][t] for t in TRAITS)
-        for slug, f in FIELDS.items()
-    }
+    smoothed = {t: profile[t] + PRIOR for t in TRAITS}
+    raw = {slug: _cosine(smoothed, f["profile"]) for slug, f in FIELDS.items()}
     exps = {k: math.exp(v / TEMPERATURE) for k, v in raw.items()}
     z = sum(exps.values())
     return {k: v / z for k, v in exps.items()}
@@ -68,6 +77,10 @@ def _entropy(probs: dict[str, float]) -> float:
 
 def _depth(probs: dict[str, float]) -> float:
     return max(0.0, 1 - _entropy(probs) / math.log(len(probs)))
+
+
+def is_decided(order: list[tuple[str, float]], n_answers: int) -> bool:
+    return n_answers >= MIN_ANSWERS and order[0][1] >= DONE_CONFIDENCE
 
 
 def match(slug: str, score: float) -> FieldMatch:
@@ -126,16 +139,17 @@ def quiz_step(answers: list[Answer]) -> QuizStep:
     answered = {a.question_id for a in answers}
     remaining = [q for q in QUESTIONS if q["id"] not in answered]
 
-    done = (order[0][1] >= DONE_CONFIDENCE) or not remaining
-    # Blend entropy-based depth with progress so the shark never stalls,
-    # and snap to the floor when a field is decided.
-    depth = 1.0 if done else min(0.95, 0.6 * _depth(probs) + 0.4 * len(answered) / len(QUESTIONS))
+    progress = len(answered) / len(QUESTIONS)
+    done = is_decided(order, len(answers)) or not remaining
+    # Blend entropy-based depth with progress so the shark never stalls, cap it by
+    # progress so one lucky answer can't plunge it, and snap to the floor when decided.
+    depth = 1.0 if done else min(0.95, 0.2 + 0.8 * progress, 0.6 * _depth(probs) + 0.4 * progress)
 
     next_q = None if done else _bank_question(remaining[0])
 
-    # "Still in range": a rank-based funnel. Each answer retires the weakest field,
-    # so the chips narrow predictably (5 → 4 → 3 → 2 → 1) while the scores stay honest.
-    keep = max(1, len(FIELDS) - len(answers))
+    # "Still in range": a rank-based funnel that narrows evenly from every field to
+    # one over the bank questions, so the chips shrink predictably while scores stay honest.
+    keep = max(1, round(len(FIELDS) - (len(FIELDS) - 1) * min(1.0, progress)))
     in_range = [match(s, p) for s, p in order[:keep]]
 
     return QuizStep(
