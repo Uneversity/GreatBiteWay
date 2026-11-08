@@ -44,6 +44,22 @@ h1, h2, h3:not(.font-mono), .font-display {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
 }
+/* The quiz's Descend button: a neon halo in the depth colour (--glow) that breathes. */
+@keyframes descend-glow {
+  0%, 100% {
+    text-shadow: 0 0 2px #fff, 0 0 6px var(--glow), 0 0 14px var(--glow), 0 0 28px var(--glow);
+  }
+  50% {
+    text-shadow: 0 0 3px #fff, 0 0 10px var(--glow), 0 0 22px var(--glow), 0 0 44px var(--glow), 0 0 70px var(--glow);
+  }
+}
+.descend-glow {
+  animation: descend-glow 2.2s ease-in-out infinite;
+}
+.descend-glow:hover {
+  animation: none;
+  text-shadow: 0 0 3px #fff, 0 0 10px var(--glow), 0 0 24px var(--glow), 0 0 48px var(--glow), 0 0 80px var(--glow);
+}
 .mdc-spin {
   animation: mdc-spin 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   transform-style: preserve-3d;
@@ -66,5 +82,9 @@ h1, h2, h3:not(.font-mono), .font-display {
 @media (prefers-reduced-motion: reduce) {
   .waterline, .edge-flow { animation: none; }
   .mdc-spin { animation: mdc-pulse 1.6s ease-in-out infinite; }
+  .descend-glow {
+    animation: none;
+    text-shadow: 0 0 2px #fff, 0 0 8px var(--glow), 0 0 18px var(--glow), 0 0 36px var(--glow);
+  }
   .glyph-draw > *, [data-open] .glyph-draw > * { stroke-dashoffset: 0; transition: none; }
 }

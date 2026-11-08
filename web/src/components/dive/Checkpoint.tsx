@@ -75,8 +75,13 @@ export function Checkpoint({ index, total, question, meters, selected, inRange, 
               type="button"
               onClick={onContinue}
               disabled={!ready}
-              className="group py-2 text-[15px] font-semibold transition-colors duration-300 disabled:cursor-not-allowed disabled:text-white/30"
-              style={{ color: ready ? accent : undefined }}
+              className={`group py-2 text-[15px] font-semibold transition-[color,text-shadow] duration-300 disabled:cursor-not-allowed disabled:text-white/30 ${ready ? "descend-glow" : ""}`}
+              // Pulsing glow in the current depth colour once an answer is picked; brighter on hover.
+              style={
+                ready
+                  ? ({ color: `color-mix(in srgb, ${accent} 70%, white)`, "--glow": accent } as React.CSSProperties)
+                  : undefined
+              }
             >
               {isLast ? "Reach the floor" : "Descend"}{" "}
               <span aria-hidden className="inline-block transition-transform duration-300 group-enabled:group-hover:translate-y-0.5">
