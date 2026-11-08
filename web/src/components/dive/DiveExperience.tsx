@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, animate, useMotionValue, useReducedMotion } from "motion/react";
 import { api, type Answer, type Question, type QuizStep } from "@/lib/api";
+import { holdBoot } from "@/lib/boot";
 import { checkpointMeters } from "@/lib/depth";
 import { OceanBackdrop } from "./OceanBackdrop";
 import { OceanCanvas } from "./OceanCanvas";
@@ -37,10 +38,17 @@ export function DiveExperience() {
   const reduced = useReducedMotion();
 
   useEffect(() => {
-    api.quizQuestions().then(setQuestions).catch((e) => setError(String(e)));
-    api.quizStep([]).then((r) => setResults((prev) => ({ ...prev, [-1]: r }))).catch((e) => setError(String(e)));
+    // Keep the startup splash up until the quiz can actually be used.
+    const release = holdBoot();
+    Promise.all([
+      api.quizQuestions().then(setQuestions).catch((e) => setError(String(e))),
+      api.quizStep([]).then((r) => setResults((prev) => ({ ...prev, [-1]: r }))).catch((e) => setError(String(e))),
+    ]).finally(release);
     const pending = timers.current;
-    return () => pending.forEach((t) => window.clearTimeout(t));
+    return () => {
+      release();
+      pending.forEach((t) => window.clearTimeout(t));
+    };
   }, []);
 
   const expected = questions.length || 5;

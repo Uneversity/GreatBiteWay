@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Fraunces, IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
 import { AuthButton } from "@/components/AuthButton";
+import { BootSplash } from "@/components/BootSplash";
 import { MdcMark } from "@/components/MdcMark";
 import "./globals.css";
 
@@ -45,6 +46,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </nav>
         </header>
         {children}
+        {/* After children so the page's effects register their boot holds first. */}
+        <BootSplash />
       </body>
     </html>
   );
