@@ -27,6 +27,14 @@ export type Major = {
   summary: string;
 };
 
+export type CourseRef = {
+  code: string;
+  title: string;
+  credits: number;
+  note?: string | null;
+  prepares_for?: string | null;
+};
+
 export type RoadmapStep = {
   id: string;
   stage: "mdc" | "transfer" | "career" | "certification";
@@ -34,6 +42,15 @@ export type RoadmapStep = {
   detail: string;
   duration: string;
   depends_on: string[];
+  courses?: CourseRef[];
+  source_url?: string | null;
+};
+
+export type RoadmapExplanation = {
+  summary: string;
+  step_notes: { id: string; note: string }[];
+  first_move: string;
+  generated_by: string;
 };
 
 export type Roadmap = {
@@ -41,6 +58,8 @@ export type Roadmap = {
   summary: string;
   steps: RoadmapStep[];
   generated_by: string;
+  /** Plain-language notes from Gemini; older saved copies may not have it. */
+  explanation?: RoadmapExplanation | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
