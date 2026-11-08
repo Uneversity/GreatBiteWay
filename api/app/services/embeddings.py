@@ -2,7 +2,7 @@
 
 Student text is embedded as RETRIEVAL_QUERY and field descriptions as
 RETRIEVAL_DOCUMENT. When Tiger Cloud is connected and majors.embedding is
-filled (run `python -m scripts.embed_majors`), ranking happens in Postgres with
+filled (run `python -m scripts.seed`), ranking happens in Postgres with
 pgvector; otherwise the field vectors are computed once and ranked in memory.
 """
 
@@ -16,14 +16,14 @@ from app.services.matching import match, resolve_answer
 
 log = logging.getLogger(__name__)
 
-_MAJORS = {m["slug"]: m for m in MAJORS}
 _field_vectors: dict[str, list[float]] | None = None
 _lock = asyncio.Lock()
 
 
 def field_document(slug: str) -> str:
     """The text that represents a field in vector space."""
-    f, m = FIELDS[slug], _MAJORS.get(slug, {})
+    f = FIELDS[slug]
+    m = next((m for m in MAJORS if m["slug"] == slug), {})
     strong = [t for t, w in sorted(f["profile"].items(), key=lambda kv: -kv[1]) if w >= 0.7]
     parts = [
         f"{f['name']} ({m.get('field', '')}).",
@@ -40,6 +40,12 @@ def profile_text(answers: list[Answer], free_text: str | None = None) -> str:
     if free_text and free_text.strip():
         lines.append(f"In their own words: {free_text.strip()}")
     return "A student describing their interests and preferences. " + " ".join(lines) if lines else ""
+
+
+def reset() -> None:
+    """Forget cached field vectors (the catalog was reloaded)."""
+    global _field_vectors
+    _field_vectors = None
 
 
 async def _memory_vectors() -> dict[str, list[float]] | None:

@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from app.schemas import NextQuestion, Question, QuizRequest, QuizStep, SemanticMatch, SemanticRequest
-from app.services import embeddings, questions
+from app.services import embeddings, events, questions
 from app.services.matching import all_questions, quiz_step
 
 router = APIRouter(prefix="/quiz", tags=["quiz"])
@@ -14,10 +14,13 @@ async def bank_questions() -> list[Question]:
 
 
 @router.post("/step", response_model=QuizStep)
-async def step(body: QuizRequest) -> QuizStep:
+async def step(body: QuizRequest, x_quiz_session: str | None = Header(default=None)) -> QuizStep:
     """Stateless: the client sends all answers so far, gets scores, in-range fields and depth.
-    Answers to Gemini-written questions count too (echo the question back in `answer.question`)."""
-    return quiz_step(body.answers)
+    Answers to Gemini-written questions count too (echo the question back in `answer.question`).
+    Each call is logged to the quiz_events hypertable in the background."""
+    result = quiz_step(body.answers)
+    events.log_step(body.answers, result, x_quiz_session)
+    return result
 
 
 @router.post("/next", response_model=NextQuestion)

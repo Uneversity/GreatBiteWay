@@ -19,7 +19,6 @@ PRIOR = 1.0  # pseudo-count added to every trait so one answer can't decide ever
 DONE_CONFIDENCE = 0.6
 MIN_ANSWERS = 5  # never call it before this many answers, however confident
 
-_BANK = {q["id"]: q for q in QUESTIONS}
 
 
 def clamp_traits(traits: dict[str, float]) -> dict[str, float]:
@@ -29,7 +28,7 @@ def clamp_traits(traits: dict[str, float]) -> dict[str, float]:
 
 def resolve_answer(a: Answer) -> tuple[str, str, dict[str, float]] | None:
     """(question text, chosen label, trait weights) for a bank or Gemini-written answer."""
-    if q := _BANK.get(a.question_id):
+    if q := next((q for q in QUESTIONS if q["id"] == a.question_id), None):
         if 0 <= a.value < len(q["options"]):
             o = q["options"][a.value]
             return q["text"], o["label"], o["traits"]

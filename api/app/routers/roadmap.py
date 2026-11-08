@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.auth import require_user
 from app.data import MAJORS, fallback_roadmap
 from app.schemas import ExplainRequest, Roadmap, RoadmapExplanation
-from app.services import db, explain, swarms
+from app.services import db, explain, pathways, swarms
 
 router = APIRouter(tags=["roadmap"])
 
@@ -14,15 +14,16 @@ async def get_roadmap(slug: str) -> Roadmap:
     if not major:
         raise HTTPException(404, "Unknown major")
 
-    # TODO: pull real catalog rows (courses/prereqs) from Postgres for this program.
-    catalog_rows = [major]
-
-    result = await swarms.generate_roadmap(major["name"], catalog_rows)
-    if result:
-        roadmap = Roadmap(career=major["name"], summary=result["summary"], steps=result["steps"],
-                          generated_by=f"Swarms (cost: {result.get('cost')})")
-    else:
-        roadmap = Roadmap(**fallback_roadmap(slug, major["name"], major["mdc_program"]))
+    # 1. Grounded tree from Tiger Cloud rows (MDC course guides + BLS), when seeded.
+    # 2. Otherwise the Swarms agents, then 3. the static placeholder.
+    roadmap = await pathways.build_roadmap(slug)
+    if not roadmap:
+        result = await swarms.generate_roadmap(major["name"], [major])
+        if result:
+            roadmap = Roadmap(career=major["name"], summary=result["summary"], steps=result["steps"],
+                              generated_by=f"Swarms (cost: {result.get('cost')})")
+        else:
+            roadmap = Roadmap(**fallback_roadmap(slug, major["name"], major["mdc_program"]))
 
     if explanation := await explain.explain_roadmap(roadmap):
         roadmap.summary = explanation.summary

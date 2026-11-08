@@ -68,6 +68,15 @@ class Major(BaseModel):
     field: str
     mdc_program: str
     summary: str
+    mdc_url: str | None = None
+
+
+class CourseRef(BaseModel):
+    code: str
+    title: str
+    credits: int
+    note: str | None = None  # allowed alternatives, e.g. "or STA 2023"
+    prepares_for: str | None = None  # certification name
 
 
 class RoadmapStep(BaseModel):
@@ -77,6 +86,23 @@ class RoadmapStep(BaseModel):
     detail: str
     duration: str
     depends_on: list[str] = []
+    courses: list[CourseRef] = []
+    source_url: str | None = None  # where this step's facts come from
+
+
+class Prerequisite(BaseModel):
+    code: str
+    title: str
+    depth: int  # 1 = direct prerequisite, 2 = prerequisite of a prerequisite, ...
+    requires: list[str]
+
+
+class Insights(BaseModel):
+    steps_24h: int
+    finished_7d: int
+    top_matches_7d: list[FieldMatch]  # score = share of finished quizzes
+    hourly_steps_24h: list[dict]  # [{"hour": iso, "steps": n}]
+    popular_answers: list[dict]  # [{"question_id", "option_idx", "label", "count"}]
 
 
 class StepNote(BaseModel):
