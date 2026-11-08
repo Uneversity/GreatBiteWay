@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useState, type MouseEvent } from "react";
 import type { Major } from "@/lib/api";
 import { MajorGlyph } from "./MajorGlyph";
 
@@ -26,6 +26,18 @@ export function MajorCard({ major }: { major: Major }) {
   const [tapped, setTapped] = useState(false);
   const [canHover, setCanHover] = useState(true);
   const open = hovered || focused || tapped;
+
+  // Cache Components keeps this page alive (hidden) after navigating to a roadmap,
+  // so the hover/focus from that click would still be "on" when you come back.
+  // Close the card whenever the page is hidden.
+  useLayoutEffect(
+    () => () => {
+      setHovered(false);
+      setFocused(false);
+      setTapped(false);
+    },
+    [],
+  );
 
   useEffect(() => {
     const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
@@ -62,6 +74,8 @@ export function MajorCard({ major }: { major: Major }) {
       <article
         data-open={open ? "" : undefined}
         onMouseEnter={() => canHover && setHovered(true)}
+        // Reopens a card the pointer is already resting on after coming back (no mouseenter fires then).
+        onMouseMove={() => canHover && !hovered && setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onFocus={() => setFocused(true)}
         onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setFocused(false)}

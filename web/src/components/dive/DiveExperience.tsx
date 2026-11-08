@@ -10,6 +10,7 @@ import { OceanCanvas } from "./OceanCanvas";
 import { OceanSurface } from "./OceanSurface";
 import { OceanDeep } from "./OceanDeep";
 import { DepthGauge } from "./DepthGauge";
+import { EntryCover } from "./EntryCover";
 import { SharkSwim } from "./SharkSwim";
 import { SurfaceHero } from "./SurfaceHero";
 import { Checkpoint } from "./Checkpoint";
@@ -171,6 +172,7 @@ export function DiveExperience() {
       <OceanSurface meters={meters} surface={surface} />
       <DepthGauge meters={meters} marks={marks} activeIndex={stage} armed={stage >= 1} onSelect={travel} canSelect={canJumpTo} />
       <SharkSwim section={stage} meters={meters} surface={surfaceLine} />
+      <EntryCover ready={questions.length > 0 || error !== null} />
 
       {error && (
         <div className="fixed bottom-4 left-4 z-40 bg-red-700 px-3 py-2 font-mono text-xs text-white">Backend error: {error}</div>

@@ -5,6 +5,7 @@ import { Fraunces, IBM_Plex_Mono, Source_Serif_4 } from "next/font/google";
 import { AuthButton } from "@/components/AuthButton";
 import { BootSplash } from "@/components/BootSplash";
 import { MdcMark } from "@/components/MdcMark";
+import { NavItems, NavLinks } from "@/components/NavLinks";
 import "./globals.css";
 
 // Editorial pairing: Fraunces for display, Source Serif for reading, Plex Mono for instrument labels.
@@ -17,11 +18,6 @@ export const metadata: Metadata = {
   description: "Dive into your career and education pathway, starting at Miami Dade College.",
 };
 
-const NAV = [
-  { href: "/majors", label: "explore majors" },
-  { href: "/dive", label: "major finder" },
-];
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}>
@@ -33,11 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             Shark Pathways
           </Link>
           <nav className="flex items-center gap-1 font-mono text-[11px] tracking-[0.14em] text-white/75 uppercase">
-            {NAV.map((n) => (
-              <Link key={n.href} href={n.href} className="hidden px-3 py-1 transition hover:text-white sm:inline">
-                [ {n.label} ]
-              </Link>
-            ))}
+            <Suspense fallback={<NavItems pathname={null} />}>
+              <NavLinks />
+            </Suspense>
             <span className="px-2">
               <Suspense fallback={null}>
                 <AuthButton />
