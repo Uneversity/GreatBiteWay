@@ -90,6 +90,13 @@ export class AccountError extends Error {
   }
 }
 
+/** Full-page trip to Auth0 sign-in and back to `returnTo`. */
+export function goToLogin(returnTo: string) {
+  // /auth/* is served by the Auth0 proxy, not a Next.js page, so it needs a real navigation, not router.push.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = `/auth/login?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
 /** Signed-in features. Call from client components only (they rely on the session cookie). */
 export const me = {
   profile: () => account<Me>(""),
