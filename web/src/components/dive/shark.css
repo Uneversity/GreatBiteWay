@@ -1,0 +1,20 @@
+@keyframes shark-tail-sway {
+  0%, 100% { transform: rotate(-9deg); }
+  50% { transform: rotate(9deg); }
+}
+@keyframes shark-fin-sway {
+  0%, 100% { transform: rotate(4deg); }
+  50% { transform: rotate(-5deg); }
+}
+@keyframes shark-bob {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -6px; }
+}
+
+.shark-tail { animation: shark-tail-sway 0.9s ease-in-out infinite; }
+.shark-fin { animation: shark-fin-sway 1.6s ease-in-out infinite; }
+.shark-bob > svg { animation: shark-bob 3.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .shark-tail, .shark-fin, .shark-bob > svg { animation: none; }
+}
