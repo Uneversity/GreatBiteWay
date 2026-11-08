@@ -25,7 +25,7 @@ def test_catalog_is_consistent():
     for f in FIELDS.values():
         assert set(f["profile"]) == set(TRAITS) and all(0 <= w <= 1 for w in f["profile"].values())
     for q in QUESTIONS:
-        assert 2 <= len(q["options"]) <= 5
+        assert 2 <= len(q["options"]) <= 6  # the checkpoint UI letters options A-F
         for o in q["options"]:
             assert o["traits"] and set(o["traits"]) <= set(TRAITS)
 
@@ -40,6 +40,36 @@ def test_ideal_student_lands_on_their_field(slug):
         best = max(range(len(q["options"])), key=lambda i: _cos(_vec(q["options"][i]["traits"]), target))
         answers.append(Answer(question_id=q["id"], value=best))
     assert quiz_step(answers).top_matches[0].slug == slug
+
+
+def _pick(qid: str, text: str) -> Answer:
+    q = next(q for q in QUESTIONS if q["id"] == qid)
+    return Answer(question_id=qid, value=next(i for i, o in enumerate(q["options"]) if text.lower() in o["label"].lower()))
+
+
+@pytest.mark.parametrize("picks, field", [
+    # A typical coder: these all used to drift to Mechanical Engineering.
+    ({"q_weekend": "website", "q_team": "write the code", "q_math": "love it", "q_elective": "coding",
+      "q_documentary": "startup", "q_workspace": "quiet desk", "q_problem": "test ideas",
+      "q_spotlight": "data or systems", "q_compliment": "get it to do that", "q_impact": "building technology",
+      "q_pressure": "cyberattack"}, "software-development"),
+    ({"q_weekend": "puzzle", "q_team": "write the code", "q_math": "love it", "q_elective": "coding",
+      "q_documentary": "skyscrapers", "q_workspace": "quiet desk", "q_problem": "test ideas",
+      "q_spotlight": "data or systems", "q_compliment": "fix anything", "q_impact": "building technology",
+      "q_pressure": "cyberattack"}, "software-development"),
+    # Neighbours that must stay put.
+    ({"q_weekend": "gadget", "q_team": "build the actual", "q_math": "love it", "q_elective": "coding",
+      "q_documentary": "skyscrapers", "q_workspace": "workshop", "q_problem": "grab some tools",
+      "q_spotlight": "behind the scenes", "q_compliment": "fix anything", "q_impact": "building technology",
+      "q_pressure": "cyberattack"}, "mechanical-engineering"),
+    ({"q_weekend": "puzzle", "q_team": "find the flaws", "q_math": "love it", "q_elective": "coding",
+      "q_documentary": "criminal", "q_workspace": "quiet desk", "q_problem": "who or what caused",
+      "q_spotlight": "data or systems", "q_compliment": "nothing slips", "q_impact": "keeping people",
+      "q_pressure": "cyberattack"}, "cybersecurity"),
+])
+def test_natural_tech_students_land_on_their_field(picks, field):
+    answers = [_pick(q, t) for q, t in picks.items()]
+    assert quiz_step(answers).top_matches[0].slug == field
 
 
 def test_in_range_funnel_narrows_to_one():

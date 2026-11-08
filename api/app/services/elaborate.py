@@ -13,7 +13,9 @@ from collections import OrderedDict
 
 from pydantic import BaseModel
 
+from app import mdc_info
 from app.config import get_settings
+from app.data import MAJORS
 from app.schemas import Roadmap, StepElaboration, StepFact
 from app.services import gemini
 
@@ -47,16 +49,24 @@ student as "you". Spell out every acronym the first time.
 
 Facts:
 - Facts in the roadmap (course codes, durations, pay, school names) are true: use them.
+- You may also get a list of "Official MDC facts" copied from mdc.edu (tuition, fees, admission
+  requirements, credits, deadlines, campuses, outcomes). These are true: use the ones that matter for
+  this step, with their exact numbers, especially in specs, how_to_prepare and questions_to_ask.
+  The student sees that list separately with sources, so explain and apply it rather than repeating
+  all of it word for word.
 - You may add general, widely known context about this kind of step (what a licensing exam is like,
   what transferring involves, what the job is day to day).
 - Do NOT invent specific numbers, deadlines, prices, pass rates, course codes or school names that are
-  not in the roadmap. When something varies, say so and tell the student who to ask.
+  not in the roadmap or the official MDC facts. When something varies, say so and tell the student who
+  to ask.
 
 Fields:
 - headline: one short line that captures this step (under 12 words).
 - overview: 2-4 sentences on what this step is and why it matters in this journey.
 - specs: 3-5 quick facts as label/value pairs (for example Format, Typical length, Where, Who it's for,
-  Cost). Keep each value under 15 words.
+  Cost). Keep each value under 15 words. If you were given official MDC facts, the student already sees
+  them in their own box, so do not repeat the program code, tuition, cost estimate or admission rules
+  here; use specs for other useful facts (format, schedule, workload, what it leads to).
 - what_to_expect: 3-5 bullets on what the student will actually do or experience.
 - how_to_prepare: 3-5 concrete bullets on how to get ready or succeed.
 - questions_to_ask: 2-4 questions to bring to an MDC advisor about this step.
@@ -64,7 +74,14 @@ Fields:
   step, where the career can go from here)."""
 
 
-def _prompt(roadmap: Roadmap, step_id: str) -> str:
+def major_slug_for(roadmap: Roadmap, given: str | None) -> str | None:
+    """The major this roadmap belongs to: the caller's slug if valid, else matched by career name."""
+    if given and given in mdc_info.MAJORS:
+        return given
+    return next((m["slug"] for m in MAJORS if m["name"] == roadmap.career), None)
+
+
+def _prompt(roadmap: Roadmap, step_id: str, facts: list[StepFact]) -> str:
     by_id = {s.id: s for s in roadmap.steps}
     step = by_id[step_id]
     before = [by_id[d].model_dump() for d in step.depends_on if d in by_id]
@@ -80,12 +97,15 @@ def _prompt(roadmap: Roadmap, step_id: str) -> str:
         note = next((n.note for n in roadmap.explanation.step_notes if n.id == step_id), None)
         if note:
             parts.append(f"Short note the student already sees: {note}")
+    if facts:
+        parts.append(mdc_info.facts_as_prompt(facts))
     return "\n\n".join(parts)
 
 
-def _key(roadmap: Roadmap, step_id: str) -> str:
+def _key(roadmap: Roadmap, step_id: str, slug: str | None) -> str:
     blob = json.dumps(
-        [get_settings().gemini_model, roadmap.career, [s.model_dump() for s in roadmap.steps], step_id],
+        [get_settings().gemini_model, mdc_info.CHECKED_ON, slug, roadmap.career,
+         [s.model_dump() for s in roadmap.steps], step_id],
         sort_keys=True,
     )
     return hashlib.sha256(blob.encode()).hexdigest()
@@ -95,16 +115,20 @@ def _clean(items: list[str]) -> list[str]:
     return [i.strip() for i in items if i and i.strip()][:MAX_ITEMS]
 
 
-async def elaborate_step(roadmap: Roadmap, step_id: str) -> StepElaboration | None:
+async def elaborate_step(roadmap: Roadmap, step_id: str, major_slug: str | None = None) -> StepElaboration | None:
     """None when the step isn't in the roadmap or Gemini is unavailable."""
-    if step_id not in {s.id for s in roadmap.steps}:
+    step = next((s for s in roadmap.steps if s.id == step_id), None)
+    if not step:
         return None
-    key = _key(roadmap, step_id)
+    slug = major_slug_for(roadmap, major_slug)
+    key = _key(roadmap, step_id, slug)
     if key in _cache:
         _cache.move_to_end(key)
         return _cache[key]
 
-    gen = await gemini.generate_json(_prompt(roadmap, step_id), _GenElaboration, system=SYSTEM, temperature=0.3, fast=True)
+    facts = mdc_info.facts_for_step(slug, step)
+    gen = await gemini.generate_json(_prompt(roadmap, step_id, facts), _GenElaboration, system=SYSTEM,
+                                     temperature=0.3, fast=True)
     if not gen or not gen.overview.strip():
         return None
 
@@ -118,6 +142,8 @@ async def elaborate_step(roadmap: Roadmap, step_id: str) -> StepElaboration | No
         questions_to_ask=_clean(gen.questions_to_ask),
         leads_to=gen.leads_to.strip(),
         generated_by="Gemini",
+        mdc_facts=facts,
+        mdc_checked_on=mdc_info.CHECKED_ON if facts else None,
     )
     _cache[key] = result
     if len(_cache) > _CACHE_SIZE:

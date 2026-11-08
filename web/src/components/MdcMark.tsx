@@ -22,7 +22,12 @@ export function MdcMarkShapes(props: SVGProps<SVGGElement>) {
 
 export function MdcMark({ className, title = "Miami Dade College" }: { className?: string; title?: string }) {
   return (
-    <svg viewBox={MDC_MARK_VIEWBOX} className={className} role="img" aria-label={title} fill="currentColor">
+    <svg
+      viewBox={MDC_MARK_VIEWBOX}
+      className={className}
+      fill="currentColor"
+      {...(title ? { role: "img", "aria-label": title } : { "aria-hidden": true })}
+    >
       <MdcMarkShapes />
     </svg>
   );

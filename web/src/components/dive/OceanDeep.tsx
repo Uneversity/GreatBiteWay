@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { MotionValue } from "motion/react";
 import { useReducedMotion } from "motion/react";
 import { ramp } from "@/lib/depth";
+import { compileProgramAsync } from "@/lib/gl";
 
 /**
  * The water column and the seafloor, rendered in a WebGL fragment shader from a
@@ -32,116 +33,111 @@ export function OceanDeep({ meters, onSupport }: { meters: MotionValue<number>; 
       return;
     }
 
-    const compile = (type: number, src: string) => {
-      const sh = gl.createShader(type);
-      if (!sh) return null;
-      gl.shaderSource(sh, src);
-      gl.compileShader(sh);
-      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
-        console.error("[OceanDeep] shader error:", gl.getShaderInfoLog(sh));
-        return null;
-      }
-      return sh;
-    };
-    const vs = compile(gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl.FRAGMENT_SHADER, FRAG);
-    const prog = gl.createProgram();
-    if (!vs || !fs || !prog) {
-      onSupport?.(false);
-      return;
-    }
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error("[OceanDeep] link error:", gl.getProgramInfoLog(prog));
-      onSupport?.(false);
-      return;
-    }
-    gl.useProgram(prog);
-    onSupport?.(true);
-
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, "a_pos");
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
-
-    const uRes = gl.getUniformLocation(prog, "u_res");
-    const uTime = gl.getUniformLocation(prog, "u_time");
-    const uM = gl.getUniformLocation(prog, "u_m");
-    const uSpeed = gl.getUniformLocation(prog, "u_speed");
-
-    let budget = 800_000;
-    let w = 0;
-    let h = 0;
-    const fit = () => {
-      const cw = window.innerWidth;
-      const ch = window.innerHeight;
-      const scale = Math.min(1, Math.sqrt(budget / (cw * ch)));
-      w = Math.max(2, Math.round(cw * scale));
-      h = Math.max(2, Math.round(ch * scale));
-      canvas.width = w;
-      canvas.height = h;
-      canvas.style.width = `${cw}px`;
-      canvas.style.height = `${ch}px`;
-      gl.viewport(0, 0, w, h);
-    };
-    fit();
-    window.addEventListener("resize", fit);
-
     let raf = 0;
-    let prev = performance.now();
-    let simT = 0;
-    let avg = 16;
-    let frames = 0;
-    let lastM = meters.get();
-    let speed = 0; // metres per second, smoothed
+    let teardown = () => {};
+    const fitRef = { current: () => {} };
+    const onResize = () => fitRef.current();
 
-    const frame = (now: number) => {
-      const dt = Math.max(0.001, Math.min(0.05, (now - prev) / 1000));
-      const interval = now - prev;
-      prev = now;
+    // This is the heaviest shader and it isn't visible on the surface, so it compiles
+    // in the background once the page is idle; the CSS backdrop covers the deep until then.
+    const cancelCompile = compileProgramAsync(gl, VERT, FRAG, {
+      label: "OceanDeep",
+      deferUntilIdle: true,
+      onFail: () => onSupport?.(false),
+      onReady: ({ prog, vs, fs }) => {
+        gl.useProgram(prog);
+        onSupport?.(true);
 
-      const m = meters.get();
-      speed = speed * 0.85 + ((m - lastM) / dt) * 0.15;
-      lastM = m;
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+        const aPos = gl.getAttribLocation(prog, "a_pos");
+        gl.enableVertexAttribArray(aPos);
+        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
-      const opacity = ramp(m, 14, 40);
-      canvas.style.opacity = opacity.toFixed(3);
-      if (opacity <= 0.001) {
-        raf = requestAnimationFrame(frame);
-        return;
-      }
+        const uRes = gl.getUniformLocation(prog, "u_res");
+        const uTime = gl.getUniformLocation(prog, "u_time");
+        const uM = gl.getUniformLocation(prog, "u_m");
+        const uSpeed = gl.getUniformLocation(prog, "u_speed");
 
-      if (!reduced) simT += dt;
-      avg = avg * 0.9 + interval * 0.1;
-      if (++frames % 90 === 0 && avg > 26 && budget > 300_000) {
-        budget *= 0.72;
+        let budget = 800_000;
+        let w = 0;
+        let h = 0;
+        const fit = () => {
+          const cw = window.innerWidth;
+          const ch = window.innerHeight;
+          const scale = Math.min(1, Math.sqrt(budget / (cw * ch)));
+          w = Math.max(2, Math.round(cw * scale));
+          h = Math.max(2, Math.round(ch * scale));
+          canvas.width = w;
+          canvas.height = h;
+          canvas.style.width = `${cw}px`;
+          canvas.style.height = `${ch}px`;
+          gl.viewport(0, 0, w, h);
+        };
+        fitRef.current = fit;
         fit();
-      }
+        window.addEventListener("resize", onResize);
 
-      gl.uniform2f(uRes, w, h);
-      gl.uniform1f(uTime, simT);
-      gl.uniform1f(uM, m);
-      gl.uniform1f(uSpeed, reduced ? 0 : speed);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-      raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
+        let prev = performance.now();
+        const readyAt = prev;
+        let simT = 0;
+        let avg = 16;
+        let frames = 0;
+        let lastM = meters.get();
+        let speed = 0; // metres per second, smoothed
+
+        const frame = (now: number) => {
+          const dt = Math.max(0.001, Math.min(0.05, (now - prev) / 1000));
+          const interval = now - prev;
+          prev = now;
+
+          const m = meters.get();
+          speed = speed * 0.85 + ((m - lastM) / dt) * 0.15;
+          lastM = m;
+
+          const fadeIn = Math.min(1, (now - readyAt) / 450);
+          const opacity = ramp(m, 14, 40) * fadeIn;
+          canvas.style.opacity = opacity.toFixed(3);
+          if (opacity <= 0.001) {
+            raf = requestAnimationFrame(frame);
+            return;
+          }
+
+          if (!reduced) simT += dt;
+          avg = avg * 0.9 + interval * 0.1;
+          if (++frames % 90 === 0 && avg > 26 && budget > 300_000) {
+            budget *= 0.72;
+            fit();
+          }
+
+          gl.uniform2f(uRes, w, h);
+          gl.uniform1f(uTime, simT);
+          gl.uniform1f(uM, m);
+          gl.uniform1f(uSpeed, reduced ? 0 : speed);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+          raf = requestAnimationFrame(frame);
+        };
+        raf = requestAnimationFrame(frame);
+
+        teardown = () => {
+          gl.deleteProgram(prog);
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          gl.deleteBuffer(buf);
+        };
+      },
+    });
 
     return () => {
+      cancelCompile();
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", fit);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
+      window.removeEventListener("resize", onResize);
+      teardown();
     };
   }, [meters, reduced, onSupport]);
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-[-8]" />;
+  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-[-8]" style={{ opacity: 0 }} />;
 }
 
 const VERT = /* glsl */ `

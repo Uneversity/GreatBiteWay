@@ -12,7 +12,7 @@ body {
   font-optical-sizing: auto;
 }
 
-h1, h2, h3, .font-display {
+h1, h2, h3:not(.font-mono), .font-display {
   font-family: var(--font-fraunces), Georgia, serif;
   font-optical-sizing: auto;
   font-variation-settings: "SOFT" 30;
@@ -35,6 +35,21 @@ h1, h2, h3, .font-display {
   stroke-dasharray: 6 6;
   animation: edge-flow 3s linear infinite;
 }
+/* Loading mark: the MDC logo turning like a coin. */
+@keyframes mdc-spin {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(360deg); }
+}
+@keyframes mdc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.mdc-spin {
+  animation: mdc-spin 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  transform-style: preserve-3d;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .waterline, .edge-flow { animation: none; }
+  .mdc-spin { animation: mdc-pulse 1.6s ease-in-out infinite; }
 }

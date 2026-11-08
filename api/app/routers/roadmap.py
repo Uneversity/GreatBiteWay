@@ -52,7 +52,7 @@ async def elaborate_step(body: ElaborateRequest) -> StepElaboration:
     """A closer look at one step: what it is, quick facts, what to expect, how to prepare."""
     if body.step_id not in {s.id for s in body.roadmap.steps}:
         raise HTTPException(404, "That step isn't in this roadmap")
-    result = await elaborate.elaborate_step(body.roadmap, body.step_id)
+    result = await elaborate.elaborate_step(body.roadmap, body.step_id, body.major_slug)
     if not result:
         raise HTTPException(503, "Gemini unavailable (is GEMINI_API_KEY set?)")
     return result

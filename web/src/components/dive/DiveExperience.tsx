@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, animate, useMotionValue, useReducedMotion } from "motion/react";
 import { api, type Answer, type Question, type QuizStep } from "@/lib/api";
 import { checkpointMeters } from "@/lib/depth";
+import { OceanBackdrop } from "./OceanBackdrop";
 import { OceanCanvas } from "./OceanCanvas";
 import { OceanSurface } from "./OceanSurface";
 import { OceanDeep } from "./OceanDeep";
@@ -57,14 +58,31 @@ export function DiveExperience() {
     [surface],
   );
 
+  const floor = questions.length + 1;
+  // Scoring for the floor view, from whatever has been answered when you get there.
+  const [floorResult, setFloorResult] = useState<QuizStep | null>(null);
+
   /** Travel to a stage: view out → depth animates → view in. */
   const travel = useCallback(
     (to: number) => {
       if (busy.current) return;
       busy.current = true;
       const descending = to > stage;
-      const duration = reduced ? 0.6 : descending ? 3.6 : 2.6;
-      const arriveAt = reduced ? 250 : descending ? 2300 : 1500;
+      // Trips all the way to the surface or the floor take the long, slow dive; stage to stage is quicker.
+      const long = to === 0 || to === floor;
+      const duration = reduced ? 0.6 : long ? (descending ? 3.6 : 2.6) : descending ? 2.9 : 2.1;
+      const arriveAt = reduced ? 250 : long ? (descending ? 2300 : 1500) : descending ? 1800 : 1200;
+
+      if (to === floor && questions.length > 0) {
+        setFloorResult(null);
+        const list: Answer[] = questions
+          .filter((q) => answers[q.id] !== undefined)
+          .map((q) => ({ question_id: q.id, value: answers[q.id] }));
+        api
+          .quizStep(list)
+          .then(setFloorResult)
+          .catch((e) => setError(String(e)));
+      }
 
       setPhase("travelling");
       setStage(to);
@@ -76,7 +94,7 @@ export function DiveExperience() {
         }, duration * 1000 + 100),
       );
     },
-    [stage, marks, meters, reduced],
+    [stage, marks, meters, reduced, floor, questions, answers],
   );
 
   const select = useCallback(
@@ -98,19 +116,30 @@ export function DiveExperience() {
   const retake = useCallback(() => {
     setAnswers({});
     setResults((prev) => ({ [-1]: prev[-1] }));
+    setFloorResult(null);
     travel(0);
   }, [travel]);
 
   const qIndex = stage - 1; // which question the current stage shows
   const question = questions[qIndex];
   const answeredCount = questions.filter((q) => answers[q.id] !== undefined).length;
-  const finalResult = results[questions.length - 1] ?? results[-1];
+  const finalResult = floorResult ?? results[questions.length - 1] ?? results[-1];
   const inRange = (results[qIndex - 1] ?? results[-1])?.in_range ?? [];
 
   // Free movement: up any time, down once the current question is answered.
   const idle = phase === "idle";
   const canAscend = idle && stage >= 1;
   const canDescend = idle && (stage === 0 || (question !== undefined && answers[question.id] !== undefined));
+  // Jumping straight to a stage from the depth gauge: anywhere above, the floor from anywhere,
+  // or a deeper question once every question on the way is answered.
+  const canJumpTo = useCallback(
+    (to: number) => {
+      if (!idle || to === stage || to < 0 || to > floor || questions.length === 0) return false;
+      if (to < stage || to === floor) return true;
+      return questions.slice(0, to - 1).every((q) => answers[q.id] !== undefined);
+    },
+    [idle, stage, floor, questions, answers],
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement | null)?.closest("input, textarea, select")) return;
@@ -128,10 +157,11 @@ export function DiveExperience() {
 
   return (
     <div className="fixed inset-0 overflow-hidden">
+      <OceanBackdrop meters={meters} surface={surface} />
       {!webgl && <OceanCanvas meters={meters} />}
       <OceanDeep meters={meters} onSupport={setWebgl} />
       <OceanSurface meters={meters} surface={surface} />
-      <DepthGauge meters={meters} marks={marks} activeIndex={stage} armed={stage >= 1} />
+      <DepthGauge meters={meters} marks={marks} activeIndex={stage} armed={stage >= 1} onSelect={travel} canSelect={canJumpTo} />
       <SharkSwim section={stage} meters={meters} surface={surfaceLine} />
 
       {error && (
@@ -153,11 +183,15 @@ export function DiveExperience() {
           <button type="button" disabled={!idle} onClick={() => travel(0)} className="border-l border-white/10 px-3 py-2 transition-colors hover:text-white disabled:text-white/25">
             ⇈ surface
           </button>
+          <button type="button" disabled={!canJumpTo(floor)} onClick={() => travel(floor)} className="border-l border-white/10 px-3 py-2 transition-colors hover:text-white disabled:text-white/25">
+            ⇊ floor
+          </button>
         </nav>
       )}
 
       <main className="absolute inset-0 pt-14 pr-[76px] sm:pr-[104px] lg:pr-[150px]">
-        <AnimatePresence mode="wait">
+        {/* initial={false}: the hero is in the first HTML at full opacity instead of fading in after JS loads. */}
+        <AnimatePresence mode="wait" initial={false}>
           {phase === "idle" && stage === 0 && (
             <SurfaceHero key="surface" checkpoints={expected} onStart={() => travel(1)} onSurfaceLine={onSurfaceLine} />
           )}
@@ -177,11 +211,13 @@ export function DiveExperience() {
             />
           )}
 
-          {phase === "idle" && questions.length > 0 && stage === questions.length + 1 && (
+          {phase === "idle" && questions.length > 0 && stage === floor && (
             <FloorResult
               key="floor"
               matches={finalResult?.top_matches ?? []}
-              complete={answeredCount === questions.length}
+              inRange={finalResult?.in_range ?? []}
+              answered={answeredCount}
+              total={questions.length}
               onRetake={retake}
             />
           )}

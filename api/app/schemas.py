@@ -165,11 +165,13 @@ class ExplainRequest(BaseModel):
 class ElaborateRequest(BaseModel):
     roadmap: Roadmap
     step_id: str
+    major_slug: str | None = None  # picks the official MDC facts; matched from roadmap.career when omitted
 
 
 class StepFact(BaseModel):
     label: str  # e.g. "Format", "Who it's for"
     value: str
+    source_url: str | None = None  # set on official MDC facts
 
 
 class StepElaboration(BaseModel):
@@ -183,3 +185,7 @@ class StepElaboration(BaseModel):
     questions_to_ask: list[str]  # for an MDC advisor
     leads_to: str  # how this step sets up the next one
     generated_by: str
+    # Official MDC facts for this step (tuition, admission, program details), copied from mdc.edu.
+    # Gemini's text is grounded in these, but they're sent as-is so the page can show them with sources.
+    mdc_facts: list[StepFact] = []
+    mdc_checked_on: str | None = None

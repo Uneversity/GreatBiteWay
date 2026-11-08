@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { MdcSpinner } from "@/components/MdcSpinner";
 import NeonGlow from "@/components/neonblade-ui/neon-glow";
 import type { Roadmap, RoadmapStep } from "@/lib/api";
 import { MAX_METERS, checkpointMeters, clamp, colorAt, rgb, zoneAt } from "@/lib/depth";
@@ -267,17 +268,30 @@ export function RoadmapDescent({ roadmap, eyebrow, meta, actions }: Props) {
   );
 }
 
-/** The surface and a "charting" line, shown while a roadmap streams in. */
+/** The surface, then the spinning MDC mark where the roadmap will appear, while it streams in. */
 export function RoadmapLoading({ eyebrow }: { eyebrow: string }) {
   return (
-    <div className="relative min-h-screen text-white" style={{ background: water(MAX_METERS) }}>
+    <div
+      className="relative flex min-h-screen flex-col text-white"
+      style={{ background: `linear-gradient(180deg, ${water(200)} 0%, ${water(MAX_METERS)} 100%)` }}
+    >
       <section className="relative text-slate-900" style={{ background: `linear-gradient(180deg, ${SKY_TOP} 0%, ${SKY_BOTTOM} 100%)` }}>
         <div className="mx-auto max-w-[1400px] px-6 pt-24 pb-28 sm:px-12 lg:pt-28 lg:pb-32">
           <div className="font-mono text-[11px] tracking-[0.18em] text-slate-700 uppercase">{eyebrow}</div>
-          <p className="mt-5 text-2xl text-slate-700">Charting your dive…</p>
+          <div aria-hidden className="mt-5 h-14 max-w-xl bg-slate-900/10 sm:h-16 lg:h-20" />
+          <div aria-hidden className="mt-6 h-4 max-w-2xl bg-slate-900/[0.07]" />
+          <div aria-hidden className="mt-2.5 h-4 max-w-lg bg-slate-900/[0.07]" />
         </div>
         <Waterline color={water(200)} />
       </section>
+      <div className="flex flex-1 items-center justify-center px-6 py-20">
+        <MdcSpinner
+          label="Loading your roadmap"
+          size="h-14 sm:h-16"
+          className="text-white"
+          caption={<span className="font-mono text-[11px] tracking-[0.18em] text-white/60 uppercase">Charting your dive…</span>}
+        />
+      </div>
     </div>
   );
 }

@@ -62,16 +62,21 @@ export type Roadmap = {
   explanation?: RoadmapExplanation | null;
 };
 
+export type StepFact = { label: string; value: string; source_url?: string | null };
+
 export type StepElaboration = {
   step_id: string;
   headline: string;
   overview: string;
-  specs: { label: string; value: string }[];
+  specs: StepFact[];
   what_to_expect: string[];
   how_to_prepare: string[];
   questions_to_ask: string[];
   leads_to: string;
   generated_by: string;
+  /** Official MDC facts for this step (tuition, admission, program), each with its mdc.edu source. */
+  mdc_facts?: StepFact[];
+  mdc_checked_on?: string | null;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -148,10 +153,10 @@ export const api = {
   majors: () => request<Major[]>("/majors"),
   roadmap: (slug: string) => request<Roadmap>(`/roadmap/${slug}`),
   /** Gemini's closer look at one step. Throws on 503 (no Gemini key) or 404 (step not in roadmap). */
-  elaborate: (roadmap: Roadmap, stepId: string, signal?: AbortSignal) =>
+  elaborate: (roadmap: Roadmap, stepId: string, signal?: AbortSignal, majorSlug?: string) =>
     request<StepElaboration>("/roadmap/elaborate", {
       method: "POST",
-      body: JSON.stringify({ roadmap, step_id: stepId }),
+      body: JSON.stringify({ roadmap, step_id: stepId, major_slug: majorSlug ?? null }),
       signal,
     }),
 };

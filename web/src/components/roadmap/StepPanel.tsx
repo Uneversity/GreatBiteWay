@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { api, type Roadmap, type RoadmapStep, type StepElaboration } from "@/lib/api";
+import { MdcMark } from "@/components/MdcMark";
+import { MdcSpinner } from "@/components/MdcSpinner";
+import { api, type Roadmap, type RoadmapStep, type StepElaboration, type StepFact } from "@/lib/api";
 
 type Props = {
   roadmap: Roadmap;
@@ -129,21 +131,24 @@ export function StepPanel({ roadmap, step, stage, onClose }: Props) {
   );
 }
 
+/** "MDC AI" at work: the spinning mark in the step's colour while Gemini writes. */
 function Loading({ color }: { color: string }) {
   return (
-    <div>
-      <p className="font-mono text-[11px] tracking-[0.16em] uppercase" style={{ color }}>
-        Sounding the depths…
-      </p>
-      <div className="mt-5 space-y-3" aria-hidden>
-        {[92, 80, 86, 60].map((w, i) => (
-          <div key={i} className="h-3 animate-pulse bg-white/10" style={{ width: `${w}%` }} />
-        ))}
-        <div className="pt-4" />
-        {[70, 55, 64].map((w, i) => (
-          <div key={i} className="h-3 animate-pulse bg-white/10" style={{ width: `${w}%` }} />
-        ))}
-      </div>
+    <div className="flex min-h-[55vh] items-center justify-center">
+      <MdcSpinner
+        label="MDC AI is looking into this step"
+        size="h-14"
+        className=""
+        caption={
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="flex items-center gap-2 font-mono text-[11px] tracking-[0.22em] uppercase">
+              <span style={{ color }}>MDC</span>
+              <span className="bg-white px-1.5 py-0.5 text-[10px] tracking-[0.16em] text-[#040b16]">AI</span>
+            </span>
+            <span className="font-mono text-[10px] tracking-[0.16em] text-white/45 uppercase">Looking into this step…</span>
+          </div>
+        }
+      />
     </div>
   );
 }
@@ -152,6 +157,8 @@ function Body({ data, step, color }: { data: StepElaboration; step: RoadmapStep;
   return (
     <div className="space-y-7">
       <p className="text-[17px] leading-relaxed text-white/85">{data.overview}</p>
+
+      {(data.mdc_facts?.length ?? 0) > 0 && <MdcFacts facts={data.mdc_facts!} checkedOn={data.mdc_checked_on} />}
 
       {data.specs.length > 0 && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 border-y border-white/10 py-4 text-sm">
@@ -201,6 +208,53 @@ function Body({ data, step, color }: { data: StepElaboration; step: RoadmapStep;
       </footer>
     </div>
   );
+}
+
+const checkedFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** Official facts copied from mdc.edu, each with a link to the page it came from. */
+function MdcFacts({ facts, checkedOn }: { facts: StepFact[]; checkedOn?: string | null }) {
+  const checked = checkedOn ? checkedFmt.format(new Date(`${checkedOn}T00:00:00Z`)) : null;
+  return (
+    <section className="border border-white/10 bg-white/[0.03] px-4 py-4" style={{ boxShadow: "inset 3px 0 0 #ffffff" }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2 font-mono text-[10px] tracking-[0.18em] uppercase">
+        <h3 className="flex items-center gap-2 font-mono text-white/80">
+          <MdcMark className="h-2.5 w-auto text-white" title="" />
+          Official MDC info
+        </h3>
+        {checked && <span className="text-white/35">checked {checked}</span>}
+      </div>
+      <dl className="mt-3 space-y-2.5 text-sm">
+        {facts.map((f, i) => (
+          <div key={i} className="grid grid-cols-[6.5rem_1fr] gap-x-3">
+            <dt className="pt-0.5 font-mono text-[10px] tracking-[0.14em] text-white/45 uppercase">{f.label}</dt>
+            <dd className="text-white/85">
+              {f.value}{" "}
+              {f.source_url && (
+                <a
+                  href={f.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-[10px] tracking-[0.1em] whitespace-nowrap text-white/40 uppercase transition hover:text-white"
+                >
+                  {sourceLabel(f.source_url)} ↗
+                </a>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function sourceLabel(url: string) {
+  try {
+    const u = new URL(url);
+    return u.pathname.endsWith(".pdf") ? `${u.hostname.replace(/^www\./, "")} PDF` : u.hostname.replace(/^www\./, "");
+  } catch {
+    return "source";
+  }
 }
 
 function List({ title, items, color, marker = "—" }: { title: string; items: string[]; color: string; marker?: string }) {

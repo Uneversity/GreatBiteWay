@@ -127,13 +127,16 @@ QUESTIONS = [
         {"label": "Cooking a big meal for friends", "traits": {"hands_on": 0.8, "creative": 0.4, "people": 0.4}},
         {"label": "Solving a puzzle or hacking challenge", "traits": {"analytical": 0.8, "protective": 0.4, "technical": 0.3}},
         {"label": "Volunteering to help people in need", "traits": {"caring": 1.0, "people": 0.4}},
+        # Added last so earlier option indices (stored in saved quiz results) keep their meaning.
+        {"label": "Building a website, app or game", "traits": {"technical": 0.8, "creative": 0.6, "analytical": 0.1}},
     ]},
     {"id": "q_team", "text": "In a group project you usually...", "options": [
         {"label": "Lead the group and pitch the idea", "traits": {"enterprising": 0.8, "people": 0.6, "expressive": 0.3}},
-        {"label": "Build the actual thing", "traits": {"hands_on": 0.7, "technical": 0.5}},
+        {"label": "Build the actual thing", "traits": {"hands_on": 0.7, "technical": 0.5, "analytical": 0.3}},
         {"label": "Make it look and sound great", "traits": {"creative": 0.8, "expressive": 0.4}},
         {"label": "Keep the schedule, notes and budget on track", "traits": {"organized": 1.0}},
         {"label": "Find the flaws before anyone else does", "traits": {"analytical": 0.6, "protective": 0.6}},
+        {"label": "Write the code that makes it all work", "traits": {"technical": 0.8, "creative": 0.5, "analytical": 0.2}},
     ]},
     {"id": "q_math", "text": "How do you feel about math?", "options": [
         {"label": "Love it, the harder the better", "traits": {"analytical": 1.0, "technical": 0.4}},
@@ -161,6 +164,7 @@ QUESTIONS = [
         {"label": "A hospital or clinic", "traits": {"caring": 0.9, "scientific": 0.5}},
         {"label": "A busy kitchen or restaurant", "traits": {"hands_on": 0.9, "people": 0.4, "creative": 0.3}},
         {"label": "An office full of clients and meetings", "traits": {"people": 0.7, "enterprising": 0.6, "organized": 0.3}},
+        {"label": "A quiet desk with two monitors and headphones on", "traits": {"technical": 0.7, "analytical": 0.4, "creative": 0.2}},
     ]},
     {"id": "q_problem", "text": "Something goes wrong. What's your first instinct?", "options": [
         {"label": "Find out who or what caused it", "traits": {"protective": 0.7, "analytical": 0.4}},
@@ -182,6 +186,7 @@ QUESTIONS = [
         {"label": "\"That's beautiful. How did you come up with it?\"", "traits": {"creative": 1.0}},
         {"label": "\"You can fix anything.\"", "traits": {"hands_on": 0.8, "technical": 0.5}},
         {"label": "\"You'd make a great boss.\"", "traits": {"enterprising": 0.9, "people": 0.4}},
+        {"label": "\"How did you get it to do that?\"", "traits": {"technical": 0.4, "creative": 0.8}},
     ]},
     {"id": "q_impact", "text": "What kind of impact matters most to you?", "options": [
         {"label": "Creating things people see, use or enjoy", "traits": {"creative": 0.8, "expressive": 0.3}},

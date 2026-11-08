@@ -8,9 +8,19 @@ import { MAX_METERS, accentAt } from "@/lib/depth";
 
 type Props = {
   matches: FieldMatch[];
-  complete: boolean;
+  /** Every field still plausible given the answers (top matches first). */
+  inRange: FieldMatch[];
+  answered: number;
+  total: number;
   onRetake: () => void;
 };
+
+function intro(answered: number, total: number) {
+  if (answered >= total) return "Based on your answers, these pathways line up best with how you like to think and work.";
+  if (answered === 0)
+    return "You dove straight to the bottom, so every field is still on the table. Here's where to start looking, or retake the dive for a real match.";
+  return `You answered ${answered} of ${total} checkpoints, so this is a rough reading. Every major still in range is below; answer more for a sharper match.`;
+}
 
 const RANK = ["Strongest match", "Also a fit", "Worth a look"];
 
@@ -20,9 +30,11 @@ const view = {
   exit: { opacity: 0, y: 90, transition: { duration: 0.55, ease: [0.4, 0, 1, 1] as const } },
 };
 
-export function FloorResult({ matches, complete, onRetake }: Props) {
+export function FloorResult({ matches, inRange, answered, total, onRetake }: Props) {
   const accent = accentAt(MAX_METERS);
   const [best, ...rest] = matches;
+  const shown = new Set(matches.map((m) => m.slug));
+  const others = inRange.filter((m) => !shown.has(m.slug));
 
   return (
     <motion.section {...view} className="h-full overflow-y-auto py-10">
@@ -37,11 +49,7 @@ export function FloorResult({ matches, complete, onRetake }: Props) {
               </NeonGlow>
             </em>
           </h2>
-          <p className="mt-4 max-w-xl text-lg leading-relaxed text-white/65">
-            {complete
-              ? "Based on your answers, these pathways line up best with how you like to think and work."
-              : "You skipped some checkpoints, so this is a rough reading. Retake the dive for a sharper match."}
-          </p>
+          <p className="mt-4 max-w-xl text-lg leading-relaxed text-white/65">{intro(answered, total)}</p>
           </div>
 
           {best && (
@@ -92,6 +100,28 @@ export function FloorResult({ matches, complete, onRetake }: Props) {
                 ))}
               </div>
               </div>
+            </div>
+          )}
+
+          {others.length > 0 && (
+            <div className="mx-auto max-w-[1400px] px-6 pt-8 sm:px-12">
+              <div className="font-mono text-[10px] tracking-[0.18em] text-white/45 uppercase">
+                Also still in range · {others.length} {others.length === 1 ? "major" : "majors"}
+              </div>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {others.map((m) => (
+                  <li key={m.slug}>
+                    <Link
+                      href={`/roadmap/${m.slug}`}
+                      className="group flex items-center gap-3 border border-white/15 bg-[#040b16]/70 px-4 py-2.5 transition hover:border-white/40 hover:bg-[#0d2142]"
+                    >
+                      <span className="text-[15px] text-white/85 group-hover:text-white">{m.name}</span>
+                      <ScoreBar score={m.score} accent={accent} />
+                      <span className="font-mono text-[10px] tracking-[0.16em] text-white/40 uppercase group-hover:text-white/80">→</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
